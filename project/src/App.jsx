@@ -7,9 +7,11 @@ import ContactPage from './pages/ContactPage'
 import ConnectPage from './pages/ConnectPage'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
+import axios from 'axios'
 
 function App() {
   return (
+    
     <Layout>
       <Routes>
         <Route path="/" element={<HomePage />} />
