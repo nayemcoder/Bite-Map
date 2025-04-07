@@ -1,15 +1,39 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { ShoppingBagIcon, HeartIcon } from '@heroicons/react/24/outline'
 import images from "../components/image.png"  // Placeholder image
+import axios from 'axios'
 
 export default function Layout({ children }) {
   const location = useLocation()
+  const [user, setUser] = useState(null)
 
-  // Check if the user is logged in by checking the auth token in localStorage
-  const isLoggedIn = localStorage.getItem('authToken') ? true : false;
-  
-  // Optionally, fetch user profile data from an API (or from localStorage if it's already stored)
-  const userProfilePic = localStorage.getItem('profilePic'); // Assume the profile picture URL is stored in localStorage
+  const isLoggedIn = !!localStorage.getItem('authToken')
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const token = localStorage.getItem('authToken')
+      if (!token) return
+
+      try {
+        const res = await axios.get('http://localhost:8080/profile', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (res.data) {
+          setUser(res.data)
+          // Optionally store avatar in localStorage
+          localStorage.setItem('profilePic', res.data.avatar)
+        }
+      } catch (err) {
+        console.error('Error fetching user profile:', err)
+      }
+    }
+
+    fetchUser()
+  }, [])
 
   return (
     <div className="min-h-screen bg-white">
@@ -21,14 +45,14 @@ export default function Layout({ children }) {
               <div className="flex-shrink-0">
                 <Link to="/home" className="text-blue-600 text-2xl font-bold">bite map</Link>
               </div>
-              <div className="image">
-                <img src={images} alt="Logo" className="w-16 h-16" />
+              <div className="ml-4">
+                <img src={images} alt="Logo" className="w-12 h-12" />
               </div>
               <div className="hidden md:block ml-10">
                 <div className="flex space-x-4">
                   <Link 
                     to="/home" 
-                    className={`px-3 py-2 text-sm font-medium ${location.pathname === '/' ? 'text-gray-900 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`px-3 py-2 text-sm font-medium ${location.pathname === '/home' ? 'text-gray-900 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
                   >
                     Home
                   </Link>
@@ -53,6 +77,7 @@ export default function Layout({ children }) {
                 </div>
               </div>
             </div>
+
             <div className="flex items-center space-x-4">
               <Link to="/orders" className="text-gray-500 hover:text-gray-700 flex items-center space-x-1">
                 <ShoppingBagIcon className="h-6 w-6" />
@@ -62,20 +87,22 @@ export default function Layout({ children }) {
                 <HeartIcon className="h-6 w-6" />
                 <span className="text-sm">Favorites</span>
               </Link>
-              
-              {/* Conditionally render based on login state */}
+
               {isLoggedIn ? (
                 <div className="flex items-center space-x-4">
                   <Link to="/profile" className="flex items-center space-x-2">
-                    {/* Profile picture */}
-                    <img src={userProfilePic || images} alt="Profile" className="w-8 h-8 rounded-full" />
+                    <img
+                      src={user?.avatar || localStorage.getItem('profilePic') || images}
+                      alt="Profile"
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
                     <span className="text-sm">My Profile</span>
                   </Link>
                   <button 
                     onClick={() => {
-                      localStorage.removeItem('authToken');
-                      localStorage.removeItem('profilePic');
-                      window.location.reload();  // To re-render the layout and remove login-related UI
+                      localStorage.removeItem('authToken')
+                      localStorage.removeItem('profilePic')
+                      window.location.reload()
                     }}
                     className="text-sm text-gray-700 hover:text-gray-900"
                   >
@@ -101,9 +128,7 @@ export default function Layout({ children }) {
       <footer className="border-t mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex justify-between items-center">
-            <div className="text-sm text-gray-500">
-              Copyright 2022 - 2023
-            </div>
+            <div className="text-sm text-gray-500">Copyright 2022 - 2025</div>
             <div className="flex space-x-4">
               <Link to="/privacy" className="text-sm text-gray-500 hover:text-gray-700">Privacy Policy</Link>
               <Link to="/terms" className="text-sm text-gray-500 hover:text-gray-700">Website Terms</Link>
@@ -112,5 +137,5 @@ export default function Layout({ children }) {
         </div>
       </footer>
     </div>
-  );
+  )
 }

@@ -8,7 +8,8 @@ import ContactPage from './pages/ContactPage'
 import ConnectPage from './pages/ConnectPage'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
-import ProfilePage from './pages/ProfilePage' // 🆕 Import profile page
+import ProfilePage from './pages/ProfilePage' 
+import EditProfile from "./pages/EditProfile";
 import axios from 'axios'
 
 function App() {
@@ -22,7 +23,8 @@ function App() {
         <Route path="/connect" element={<ConnectPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
-        <Route path="/profile" element={<ProfilePage />} /> {/* 🆕 Add this line */}
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/edit-profile" element={<EditProfile />} />
       </Routes>
     </Layout>
   )
