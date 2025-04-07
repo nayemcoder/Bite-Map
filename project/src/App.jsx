@@ -1,3 +1,4 @@
+// src/App.jsx
 import { Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import HomePage from './pages/HomePage'
@@ -7,11 +8,11 @@ import ContactPage from './pages/ContactPage'
 import ConnectPage from './pages/ConnectPage'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
+import ProfilePage from './pages/ProfilePage' // 🆕 Import profile page
 import axios from 'axios'
 
 function App() {
   return (
-    
     <Layout>
       <Routes>
         <Route path="/home" element={<HomePage />} />
@@ -21,6 +22,7 @@ function App() {
         <Route path="/connect" element={<ConnectPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/profile" element={<ProfilePage />} /> {/* 🆕 Add this line */}
       </Routes>
     </Layout>
   )
