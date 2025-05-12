@@ -1,39 +1,42 @@
-import { Link, useLocation } from 'react-router-dom'
-import { useEffect, useState } from 'react'
-import { ShoppingBagIcon, HeartIcon } from '@heroicons/react/24/outline'
-import images from "../components/image.png"  // Placeholder image
-import axios from 'axios'
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { ShoppingBagIcon, HeartIcon } from '@heroicons/react/24/outline';
+import images from "../components/image.png";  // Placeholder image
+import axios from 'axios';
 
 export default function Layout({ children }) {
-  const location = useLocation()
-  const [user, setUser] = useState(null)
+  const location = useLocation();
+  const navigate = useNavigate(); // Use navigate to handle redirects
+  const [user, setUser] = useState(null);
 
-  const isLoggedIn = !!localStorage.getItem('authToken')
+  const isLoggedIn = !!localStorage.getItem('authToken');
 
   useEffect(() => {
     const fetchUser = async () => {
-      const token = localStorage.getItem('authToken')
-      if (!token) return
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
 
       try {
         const res = await axios.get('http://localhost:8080/profile', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        })
+        });
 
         if (res.data) {
-          setUser(res.data)
+          setUser(res.data);
           // Optionally store avatar in localStorage
-          localStorage.setItem('profilePic', res.data.avatar)
+          localStorage.setItem('profilePic', res.data.avatar);
         }
       } catch (err) {
-        console.error('Error fetching user profile:', err)
+        console.error('Error fetching user profile:', err);
       }
-    }
+    };
 
-    fetchUser()
-  }, [])
+    fetchUser();
+  }, []);
+
+  const userRole = localStorage.getItem('role');  // Get user role (from localStorage or decoded JWT)
 
   return (
     <div className="min-h-screen bg-white">
@@ -90,19 +93,21 @@ export default function Layout({ children }) {
 
               {isLoggedIn ? (
                 <div className="flex items-center space-x-4">
-                  <Link to="/profile" className="flex items-center space-x-2">
+                  {/* Conditionally render Profile link based on role */}
+                  <Link to={userRole === 'seller' ? '/seller-profile' : '/profile'} className="flex items-center space-x-2">
                     <img
-                      src={user?.avatar || localStorage.getItem('profilePic') || images}
+                      src={user?.profileImage || localStorage.getItem('profilePic') || images}
                       alt="Profile"
                       className="w-8 h-8 rounded-full object-cover"
                     />
-                    <span className="text-sm">My Profile</span>
+                    <span className="text-sm">{userRole === 'seller' ? 'My Restaurant Profile' : 'My Profile'}</span>
                   </Link>
                   <button 
                     onClick={() => {
-                      localStorage.removeItem('authToken')
-                      localStorage.removeItem('profilePic')
-                      window.location.reload()
+                      localStorage.removeItem('authToken');
+                      localStorage.removeItem('profilePic');
+                      localStorage.removeItem('userRole'); // Optionally remove role from storage
+                      window.location.reload();
                     }}
                     className="text-sm text-gray-700 hover:text-gray-900"
                   >
@@ -137,5 +142,5 @@ export default function Layout({ children }) {
         </div>
       </footer>
     </div>
-  )
+  );
 }

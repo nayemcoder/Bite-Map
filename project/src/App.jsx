@@ -1,4 +1,3 @@
-// src/App.jsx
 import { Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import HomePage from './pages/HomePage'
@@ -8,8 +7,10 @@ import ContactPage from './pages/ContactPage'
 import ConnectPage from './pages/ConnectPage'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
-import ProfilePage from './pages/ProfilePage' 
-import EditProfile from "./pages/EditProfile";
+import ProfilePage from './pages/ProfilePage'
+import EditProfile from './pages/EditProfile'
+import SellerProfile from './pages/SellerProfile'
+import EditSellerProfile from './pages/EditSellerProfile'
 import axios from 'axios'
 
 function App() {
@@ -25,6 +26,8 @@ function App() {
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/edit-profile" element={<EditProfile />} />
+        <Route path="/seller-profile" element={<SellerProfile />} />
+        <Route path="/edit-seller-profile" element={<EditSellerProfile />} />
       </Routes>
     </Layout>
   )
