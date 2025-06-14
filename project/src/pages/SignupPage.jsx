@@ -1,229 +1,150 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import bcrypt from 'bcryptjs';
 
 export default function SignupPage() {
-  const [user_type, setUserType] = useState('customer');
-  const [profilePic, setProfilePic] = useState(null);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [message, setMessage] = useState({ text: '', type: '' });
-  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    password: '',
+    user_type: 'customer'
+  });
+  const [error, setError]     = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate              = useNavigate();
 
-  const handleProfilePicChange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      setProfilePic(file);
-    }
+  const handleChange = e => {
+    const { name, value } = e.target;
+    console.log('🔹 field change:', name, value);
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const handleSubmit = async e => {
+    e.preventDefault();
+    console.log('🔹 signup submit:', formData);
+    setError('');
 
-    // Basic validation
-    if (password !== confirmPassword) {
-      setMessage({ text: 'Passwords do not match', type: 'error' });
+    const { name, email, phone, password, user_type } = formData;
+    if (!name || !email || !phone || !password) {
+      setError('All fields are required.');
       return;
     }
 
-    const formData = new FormData();
-    formData.append('name', name);
-    formData.append('email', email);
-    formData.append('phone', phone);
-    formData.append('password', password);
-    formData.append('user_type', user_type);
-    if (profilePic) {
-      formData.append('profilePic', profilePic);
-    }
-
+    setLoading(true);
     try {
-      const response = await axios.post('http://localhost:8080/signup', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      // 1. Generate a salt + hash the password
+      const saltRounds = 10;
+      console.log('🔹 hashing password...');
+      const hash = await bcrypt.hash(password, saltRounds);
+      console.log('🔹 hash generated:', hash);
 
-      if (response.status === 200) {
-        setMessage({ 
-          text: 'Account created successfully! Redirecting to login...', 
-          type: 'success' 
-        });
-        setTimeout(() => {
-          navigate('/login');
-        }, 2000);
-      }
-    } catch (error) {
-      let errorMsg = 'Error during signup';
-      if (error.response) {
-        if (error.response.status === 409) {
-          errorMsg = 'Email already exists';
-        } else {
-          errorMsg = error.response.data.message || errorMsg;
-        }
-      }
-      setMessage({ text: errorMsg, type: 'error' });
+      // 2. Store the “registeredUser” object with hash, no plaintext
+      const registeredUser = { name, email, phone, role: user_type, passwordHash: hash };
+      console.log('🔹 storing registeredUser:', registeredUser);
+      localStorage.setItem('registeredUser', JSON.stringify(registeredUser));
+
+      // 3. Clear any prior session
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      localStorage.removeItem('userRole');
+
+      // 4. Navigate to login
+      navigate('/login');
+    } catch (err) {
+      console.error('🔹 signup error:', err);
+      setError('Failed to sign up.');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-[calc(100vh-64px)] flex items-center justify-center bg-gray-50 py-12 px-6 sm:px-8 lg:px-10">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">Create your account</h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Already have an account?{' '}
-            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
-              Log in
-            </Link>
-          </p>
-        </div>
-        
-        {message.text && (
-          <div className={`rounded-md p-4 ${
-            message.type === 'success' 
-              ? 'bg-green-50 text-green-800' 
-              : 'bg-red-50 text-red-800'
-          }`}>
-            {message.text}
-          </div>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="max-w-md w-full p-8 bg-white rounded-lg shadow">
+        <h2 className="text-2xl font-bold text-center mb-6">
+          Create your account
+        </h2>
+        {error && (
+          <div className="mb-4 text-red-500 text-center">{error}</div>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-          <div className="rounded-md shadow-sm space-y-4">
-            <div>
-              <input
-                id="name"
-                name="name"
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="block w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Full name"
-              />
-            </div>
-            
-            <div>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="block w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Email address"
-              />
-            </div>
-            
-            <div>
-              <input
-                id="phone"
-                name="phone"
-                type="tel"
-                required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="block w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Phone number"
-              />
-            </div>
-            
-            <div>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength="6"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="block w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Password (min 6 characters)"
-              />
-            </div>
-            
-            <div>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                autoComplete="new-password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="block w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Confirm password"
-              />
-            </div>
-          </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input
+            name="name"
+            value={formData.name}
+            onChange={handleChange}
+            placeholder="Full name"
+            className="w-full p-2 border rounded"
+            required
+          />
+          <input
+            name="email"
+            type="email"
+            value={formData.email}
+            onChange={handleChange}
+            placeholder="Email"
+            className="w-full p-2 border rounded"
+            required
+          />
+          <input
+            name="phone"
+            value={formData.phone}
+            onChange={handleChange}
+            placeholder="Phone"
+            className="w-full p-2 border rounded"
+            required
+          />
+          <input
+            name="password"
+            type="password"
+            value={formData.password}
+            onChange={handleChange}
+            placeholder="Password"
+            className="w-full p-2 border rounded"
+            required
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Profile Picture (Optional)</label>
-            <input
-              id="profilePic"
-              name="profilePic"
-              type="file"
-              accept="image/*"
-              onChange={handleProfilePicChange}
-              className="block w-full text-sm text-gray-500
-                file:mr-4 file:py-2 file:px-4
-                file:rounded-md file:border-0
-                file:text-sm file:font-semibold
-                file:bg-blue-50 file:text-blue-700
-                hover:file:bg-blue-100"
-            />
-            {profilePic && (
-              <div className="mt-2 flex justify-center">
-                <img 
-                  src={URL.createObjectURL(profilePic)} 
-                  alt="Profile preview" 
-                  className="w-24 h-24 object-cover rounded-full border-2 border-gray-200" 
-                />
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">Account Type</label>
-            <div className="flex space-x-4">
-              <label className="inline-flex items-center">
-                <input
-                  type="radio"
-                  name="user_type"
-                  value="customer"
-                  checked={user_type === 'customer'}
-                  onChange={() => setUserType('customer')}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                />
-                <span className="ml-2 text-gray-700">Customer</span>
-              </label>
-              <label className="inline-flex items-center">
-                <input
-                  type="radio"
-                  name="user_type"
-                  value="seller"
-                  checked={user_type === 'seller'}
-                  onChange={() => setUserType('seller')}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                />
-                <span className="ml-2 text-gray-700">Restaurant Owner</span>
-              </label>
-            </div>
+          <div className="flex space-x-4">
+            <label className="flex items-center">
+              <input
+                type="radio"
+                name="user_type"
+                value="customer"
+                checked={formData.user_type === 'customer'}
+                onChange={handleChange}
+                className="mr-2"
+              />
+              Customer
+            </label>
+            <label className="flex items-center">
+              <input
+                type="radio"
+                name="user_type"
+                value="seller"
+                checked={formData.user_type === 'seller'}
+                onChange={handleChange}
+                className="mr-2"
+              />
+              Restaurant Owner
+            </label>
           </div>
 
           <button
             type="submit"
-            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:opacity-70"
           >
-            Create account
+            {loading ? 'Creating account...' : 'Sign up'}
           </button>
         </form>
+
+        <p className="mt-4 text-center">
+          Already have an account?{' '}
+          <Link to="/login" className="text-blue-600 hover:underline">
+            Log in
+          </Link>
+        </p>
       </div>
     </div>
   );

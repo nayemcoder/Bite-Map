@@ -1,89 +1,68 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import defaultCover from '../assets/default-cover.jpg';
+import defaultProfile from '../assets/default-profile.png';
 
 export default function SellerProfilePage() {
   const navigate = useNavigate();
-  const [seller, setSeller] = useState(null);
-  const [orders, setOrders] = useState([]);
+  const [profile, setProfile] = useState({ user: null, restaurant: null });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('authToken');
-    if (!token) return;
+    if (!token) return navigate('/login');
 
-    // Fetch seller profile
-    fetch('http://localhost:8080/seller/profile', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(res => res.json())
-      .then(data => setSeller(data))
-      .catch(err => console.error('Failed to fetch seller profile:', err));
+    axios
+      .get('/sellers/profile', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(res => setProfile(res.data))
+      .catch(() => navigate('/login'))
+      .finally(() => setLoading(false));
+  }, [navigate]);
 
-    // Fetch orders
-    fetch('http://localhost:8080/seller/orders', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(res => res.json())
-      .then(data => setOrders(data))
-      .catch(err => console.error('Failed to fetch orders:', err));
-  }, []);
-
-  if (!seller) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <p className="text-gray-500">Loading seller profile...</p>
-      </div>
-    );
+  if (loading) {
+    return <p>Loading dashboard…</p>;
+  }
+  if (!profile.user || !profile.restaurant) {
+    return <p>No profile found.</p>;
   }
 
-  // Order stats
-  const totalOrders = orders.length;
-  const acceptedOrders = orders.filter(order => order.status === 'accepted').length;
-  const pendingOrders = orders.filter(order => order.status === 'pending').length;
-  const completedOrders = orders.filter(order => order.status === 'completed').length;
-  const canceledOrders = orders.filter(order => order.status === 'canceled').length;
+  const { user, restaurant } = profile;
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100 p-4">
-      <div className="bg-white shadow-md rounded-2xl p-8 w-full max-w-2xl">
-        <div className="flex flex-col items-center">
+    <div className="min-h-screen bg-gray-100">
+      <div
+        className="h-64 bg-cover bg-center"
+        style={{ backgroundImage: `url(${restaurant.coverImage || defaultCover})` }}
+      />
+
+      <div className="max-w-4xl mx-auto p-6 space-y-8">
+        {/* Manage Dashboard Button */}
+        <button
+          onClick={() => navigate('/seller-dashboard/manage')}
+          className="mb-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+        >
+          Manage Dashboard
+        </button>
+
+        <section className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-2xl font-semibold mb-2">About</h2>
+          <p className="text-gray-700">{restaurant.description}</p>
+        </section>
+
+        <section className="bg-white rounded-lg shadow p-6 flex items-center space-x-4">
           <img
-            className="w-32 h-32 rounded-full object-cover border-4 border-green-500 mb-4"
-            src={seller.avatar}
-            alt="Seller Avatar"
+            src={user.profileImage || defaultProfile}
+            alt="Owner"
+            className="w-20 h-20 rounded-full object-cover border-4 border-gray-300"
           />
-          <h2 className="text-2xl font-bold text-gray-800">{seller.name}</h2>
-          <p className="text-sm text-gray-500">Restaurant Owner</p>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-6 w-full text-center">
-            <div className="bg-blue-100 p-4 rounded-lg">
-              <h3 className="text-xl font-bold">{totalOrders}</h3>
-              <p className="text-sm text-gray-600">Total Orders</p>
-            </div>
-            <div className="bg-green-100 p-4 rounded-lg">
-              <h3 className="text-xl font-bold">{acceptedOrders}</h3>
-              <p className="text-sm text-gray-600">Accepted</p>
-            </div>
-            <div className="bg-yellow-100 p-4 rounded-lg">
-              <h3 className="text-xl font-bold">{pendingOrders}</h3>
-              <p className="text-sm text-gray-600">Pending</p>
-            </div>
-            <div className="bg-purple-100 p-4 rounded-lg">
-              <h3 className="text-xl font-bold">{completedOrders}</h3>
-              <p className="text-sm text-gray-600">Completed</p>
-            </div>
-            <div className="bg-red-100 p-4 rounded-lg">
-              <h3 className="text-xl font-bold">{canceledOrders}</h3>
-              <p className="text-sm text-gray-600">Canceled</p>
-            </div>
+          <div>
+            <p className="font-medium">{user.name}</p>
+            <p className="text-sm text-gray-600">{user.email}</p>
           </div>
-
-          <button
-            onClick={() => navigate('/edit-seller-profile')}
-            className="mt-6 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-          >
-            Edit Restaurant Profile
-          </button>
-        </div>
+        </section>
       </div>
     </div>
   );

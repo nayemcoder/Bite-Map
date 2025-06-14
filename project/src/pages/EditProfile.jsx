@@ -1,123 +1,91 @@
-// src/pages/EditProfile.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 export default function EditProfile() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [profilePic, setProfilePic] = useState(null);
+  const [data, setData] = useState({
+    name: '', email: '', password: '', profileImage: null
+  });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('authToken');
-    if (!token) {
-      navigate('/login');
-      return;
-    }
+    if (!token) return navigate('/login');
 
-    fetch('http://localhost:8080/profile', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+    axios.get('/customers/profile', {
+      headers: { Authorization: `Bearer ${token}` }
     })
-      .then((res) => res.json())
-      .then((data) => {
-        setUser(data);
-        setName(data.name);
-        setEmail(data.email);
-      })
-      .catch((err) => console.error('Failed to fetch profile:', err));
+      .then(res => setData(d => ({
+        ...d,
+        name: res.data.name,
+        email: res.data.email
+      })))
+      .catch(() => navigate('/login'))
+      .finally(() => setLoading(false));
   }, [navigate]);
 
-  const handleProfileUpdate = (e) => {
-    e.preventDefault();
-
-    const token = localStorage.getItem('authToken');
-    const formData = new FormData();
-    formData.append('name', name);
-    formData.append('email', email);
-    if (password) formData.append('password', password);
-    if (profilePic) formData.append('profilePic', profilePic);
-
-    fetch('http://localhost:8080/update-profile', {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: formData,
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        alert('Profile updated successfully!');
-        navigate('/profile');
-      })
-      .catch((err) => {
-        console.error('Error updating profile:', err);
-        alert('Error updating profile. Please try again.');
-      });
+  const handleChange = e => {
+    const { name, value, files } = e.target;
+    if (name === 'profileImage') {
+      setData(d => ({ ...d, profileImage: files[0] }));
+    } else {
+      setData(d => ({ ...d, [name]: value }));
+    }
   };
 
+  const handleSubmit = async e => {
+    e.preventDefault();
+    const token = localStorage.getItem('authToken');
+    const form = new FormData();
+    form.append('name', data.name);
+    form.append('email', data.email);
+    if (data.password) form.append('password', data.password);
+    if (data.profileImage) form.append('profileImage', data.profileImage);
+
+    try {
+      await axios.put('/customers/profile', form, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      alert('Profile updated!');
+      navigate('/profile');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Update failed');
+    }
+  };
+
+  if (loading) return <p>Loading…</p>;
+
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100">
-      <div className="bg-white shadow-md rounded-xl p-8 w-full max-w-md">
-        <h2 className="text-2xl font-semibold text-gray-800">Edit Profile</h2>
-        <form onSubmit={handleProfileUpdate} className="space-y-4 mt-6">
-          <div>
-            <label htmlFor="name" className="block text-gray-700">Full Name</label>
-            <input
-              type="text"
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="mt-1 w-full px-4 py-2 border border-gray-300 rounded-md"
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="email" className="block text-gray-700">Email</label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 w-full px-4 py-2 border border-gray-300 rounded-md"
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-gray-700">New Password (Optional)</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full px-4 py-2 border border-gray-300 rounded-md"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="profilePic" className="block text-gray-700">Profile Picture</label>
-            <input
-              type="file"
-              id="profilePic"
-              accept="image/*"
-              onChange={(e) => setProfilePic(e.target.files[0])}
-              className="mt-1 w-full"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="w-full mt-4 px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
-          >
-            Update Profile
-          </button>
-        </form>
+    <form onSubmit={handleSubmit} encType="multipart/form-data"
+      className="p-8 bg-white rounded-lg shadow max-w-lg mx-auto mt-10">
+      <h2 className="text-xl font-semibold mb-4">Edit Your Profile</h2>
+      {['name','email','password'].map(f => (
+        <div key={f} className="mb-4">
+          <label className="block mb-1 capitalize">
+            {f === 'password' ? 'New Password' : f.charAt(0).toUpperCase()+f.slice(1)}
+          </label>
+          <input
+            type={f==='password'?'password':'text'}
+            name={f}
+            value={data[f]}
+            onChange={handleChange}
+            placeholder={f==='password'?'Leave blank':''}
+            className="w-full p-2 border rounded"
+          />
+        </div>
+      ))}
+      <div className="mb-4">
+        <label className="block mb-1">Profile Picture</label>
+        <input type="file" name="profileImage" accept="image/*"
+          onChange={handleChange}/>
       </div>
-    </div>
+      <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
+        Update Profile
+      </button>
+    </form>
   );
 }
