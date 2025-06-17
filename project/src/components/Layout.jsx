@@ -1,23 +1,21 @@
 // src/components/Layout.jsx
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import defaultProfile from '../assets/default-profile.png';
+import { useEffect, useState }            from 'react';
+import defaultProfile                      from '../assets/default-profile.png';
 
 export default function Layout({ children }) {
   const location = useLocation();
-  const navigate  = useNavigate();
-  const [user, setUser]    = useState(null);
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
 
   // read token + role from localStorage
   const token    = localStorage.getItem('authToken');
   const userRole = localStorage.getItem('userRole'); // 'customer' or 'seller'
   const isCustomer = userRole === 'customer';
+  const isSeller   = userRole === 'seller';
 
   useEffect(() => {
-    // if not logged in, no need to load user
     if (!token) return;
-
-    // try to parse stored user object
     const raw = localStorage.getItem('user');
     if (!raw) {
       localStorage.clear();
@@ -38,7 +36,7 @@ export default function Layout({ children }) {
   };
 
   // helper to highlight active link
-  const linkClass = (path) =>
+  const linkClass = path =>
     `px-3 py-2 text-sm font-medium ${
       location.pathname === path ||
       (path === '/restaurants' && location.pathname.startsWith('/restaurants'))
@@ -50,32 +48,39 @@ export default function Layout({ children }) {
     <div className="min-h-screen bg-white flex flex-col">
       <nav className="border-b">
         <div className="max-w-7xl mx-auto px-4 flex justify-between h-16 items-center">
-          {/* Branding */}
+          {/* Branding + Main Links */}
           <div className="flex items-center space-x-6">
-            <Link to="/home" className="text-blue-600 text-2xl font-bold">
-              bite map
-            </Link>
-
-            {/* Only show on medium+ */}
-            <div className="hidden md:flex space-x-4">
-              <Link to="/home" className={linkClass('/home')}>
-                Home
+            {/* Logo */}
+            {isCustomer ? (
+              <Link to="/home" className="text-blue-600 text-2xl font-bold">
+                bite map
               </Link>
+            ) : (
+              <span className="text-blue-600 text-2xl font-bold">bite map</span>
+            )}
 
+            {/* Nav links (md+) */}
+            <div className="hidden md:flex space-x-4">
+              {/* Home & Restaurants only for customers */}
               {isCustomer && (
-                <Link to="/restaurants" className={linkClass('/restaurants')}>
-                  Restaurants
-                </Link>
+                <>
+                  <Link to="/home"        className={linkClass('/home')}>Home</Link>
+                  <Link to="/restaurants" className={linkClass('/restaurants')}>Restaurants</Link>
+                </>
               )}
+
+              {/* About & Contact for everyone */}
+              <Link to="/about"   className={linkClass('/about')}>About</Link>
+              <Link to="/contact" className={linkClass('/contact')}>Contact</Link>
             </div>
           </div>
 
-          {/* Right side: login/profile */}
+          {/* Right side: Login/Profile */}
           <div className="flex items-center space-x-4">
             {token ? (
               <>
                 <Link
-                  to={userRole === 'seller' ? '/seller-dashboard' : '/profile'}
+                  to={isSeller ? '/seller-dashboard' : '/profile'}
                   className="flex items-center space-x-2"
                 >
                   <img

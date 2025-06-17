@@ -9,13 +9,11 @@ const profileController    = require("../controllers/profileController");
 const restaurantController = require("../controllers/restaurantController");
 const bookingController    = require("../controllers/bookingController");
 
-// Auth middleware (assumes you have JWT logic here)
+// Auth middleware
 const { authenticateToken, authorizeRoles } = require("../middlewares/auth");
-
-// Multer for uploads (assumes config/multer.js exists)
+// Multer for uploads
 const upload = require("../config/multer");
-
-// simple logger
+// Simple logger
 const logRequest = (req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
   next();
@@ -62,22 +60,23 @@ router.put(
 /** RESTAURANTS **/
 router.get("/restaurants", logRequest, restaurantController.getAllRestaurants);
 router.get("/restaurants/:id", logRequest, restaurantController.getRestaurant);
+
 router.post(
   "/sellers/restaurants",
   logRequest,
   authenticateToken,
   authorizeRoles(["seller"]),
   upload.single("cover_image"),
-  upload.array("gallery", 5),
   restaurantController.createRestaurant
 );
+
 router.put(
   "/sellers/restaurants/:id",
   logRequest,
   authenticateToken,
   authorizeRoles(["seller"]),
+  // only single cover image, no gallery
   upload.single("cover_image"),
-  upload.array("gallery", 5),
   restaurantController.updateRestaurantDetails
 );
 

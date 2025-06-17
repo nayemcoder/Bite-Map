@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import axios from "axios";
+import defaultCover   from "../assets/default-cover.jpg";
 
 export default function RestaurantDetailPage() {
   const { id }     = useParams();
@@ -17,21 +18,23 @@ export default function RestaurantDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
 
-  // load restaurant data
+  // 1) load restaurant data
   useEffect(() => {
-    (async () => {
+    const load = async () => {
       try {
-        const { data } = await axios.get(`/api/restaurants/${id}`);
-        setRest(data);
+        const res = await axios.get(`/restaurants/${id}`);
+        // your controller returns a flat object
+        setRest(res.data);
       } catch {
         navigate("/restaurants");
       } finally {
         setLoading(false);
       }
-    })();
+    };
+    load();
   }, [id, navigate]);
 
-  // load user session
+  // 2) load current user
   useEffect(() => {
     const raw = localStorage.getItem("user");
     if (raw) setUser(JSON.parse(raw));
@@ -46,10 +49,11 @@ export default function RestaurantDetailPage() {
     e.preventDefault();
     setError("");
     try {
-      await axios.post("/api/bookings", {
-        restaurant_id:   rest.id,
-        ...form
-      });
+      await axios.post(
+        "/bookings",
+        { restaurant_id: rest.id, ...form },
+        { headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` } }
+      );
       navigate("/profile");
     } catch (err) {
       setError(err.response?.data?.message || "Booking failed");
@@ -68,7 +72,9 @@ export default function RestaurantDetailPage() {
       {/* Cover */}
       <div
         className="h-64 bg-cover bg-center rounded"
-        style={{ backgroundImage: `url(${rest.coverImage})` }}
+        style={{
+          backgroundImage: `url(${rest.coverImage || defaultCover})`
+        }}
       />
 
       {/* Info */}
@@ -76,26 +82,13 @@ export default function RestaurantDetailPage() {
       <p className="text-gray-600">{rest.cuisineType}</p>
       <p className="text-gray-700">{rest.description}</p>
 
-      {/* Gallery */}
-      {rest.gallery?.length > 0 && (
-        <div className="grid grid-cols-2 gap-2">
-          {rest.gallery.map((url, i) => (
-            <img
-              key={i}
-              src={url}
-              alt={`${rest.name} ${i}`}
-              className="object-cover h-32 w-full rounded"
-            />
-          ))}
-        </div>
-      )}
+      {/* (Optional) Gallery */}
+      {/* If you need images, update your backend to return rest.gallery as an array of URLs */}
+      {/* {rest.gallery?.length > 0 && ( ... )} */}
 
       {/* Booking form only for customers */}
       {user?.role === "customer" && (
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white p-6 rounded shadow space-y-4"
-        >
+        <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow space-y-4">
           <h3 className="text-xl font-semibold">Make a Booking</h3>
           {error && <p className="text-red-500">{error}</p>}
 

@@ -1,117 +1,177 @@
+// src/pages/SignupPage.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import bcrypt from 'bcryptjs';
+import axios                 from 'axios';
 
 export default function SignupPage() {
-  const [formData, setFormData] = useState({
+  const navigate = useNavigate();
+  const [form, setForm] = useState({
+    // user fields
     name: '',
     email: '',
     phone: '',
+    address: '',
     password: '',
-    user_type: 'customer'
+    user_type: 'customer',
+    profileImage: null,       // <-- new
+
+    // seller-only restaurant fields
+    restaurantName: '',
+    restaurantDescription: '',
+    restaurantAddress: '',
+    restaurantContact: '',
+    restaurantCuisine: '',
+    restaurantCover: null     // <-- new
   });
   const [error, setError]     = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate              = useNavigate();
 
   const handleChange = e => {
-    const { name, value } = e.target;
-    console.log('🔹 field change:', name, value);
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const { name, value, files } = e.target;
+    if (files) {
+      // file input
+      setForm(f => ({ ...f, [name]: files[0] }));
+    } else {
+      setForm(f => ({ ...f, [name]: value }));
+    }
   };
 
   const handleSubmit = async e => {
     e.preventDefault();
-    console.log('🔹 signup submit:', formData);
     setError('');
 
-    const { name, email, phone, password, user_type } = formData;
-    if (!name || !email || !phone || !password) {
-      setError('All fields are required.');
-      return;
+    // Basic validation
+    const required = ['name','email','phone','address','password'];
+    for (let key of required) {
+      if (!form[key]) {
+        setError('All fields are required.');
+        return;
+      }
+    }
+    if (form.user_type === 'seller') {
+      const rs = ['restaurantName','restaurantDescription','restaurantAddress','restaurantContact','restaurantCuisine'];
+      for (let key of rs) {
+        if (!form[key]) {
+          setError('Please fill in all restaurant details.');
+          return;
+        }
+      }
     }
 
     setLoading(true);
     try {
-      // 1. Generate a salt + hash the password
-      const saltRounds = 10;
-      console.log('🔹 hashing password...');
-      const hash = await bcrypt.hash(password, saltRounds);
-      console.log('🔹 hash generated:', hash);
+      // 1) Create the user
+      const res = await axios.post(
+        '/auth/signup',
+        {
+          name:      form.name,
+          email:     form.email,
+          phone:     form.phone,
+          address:   form.address,
+          password:  form.password,
+          user_type: form.user_type
+        },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      const { token, user } = res.data;
+      localStorage.setItem('authToken', token);
+      localStorage.setItem('user', JSON.stringify(user));
 
-      // 2. Store the “registeredUser” object with hash, no plaintext
-      const registeredUser = { name, email, phone, role: user_type, passwordHash: hash };
-      console.log('🔹 storing registeredUser:', registeredUser);
-      localStorage.setItem('registeredUser', JSON.stringify(registeredUser));
+      // 2) Upload profile image if provided
+      if (form.profileImage) {
+        const pf = new FormData();
+        pf.append('profileImage', form.profileImage);
+        await axios.put(
+          form.user_type === 'seller'
+            ? '/sellers/profile'
+            : '/customers/profile',
+          pf,
+          { headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data'
+            }
+          }
+        );
+      }
 
-      // 3. Clear any prior session
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('user');
-      localStorage.removeItem('userRole');
+      // 3) If seller, create restaurant with cover image
+      if (form.user_type === 'seller') {
+        const rf = new FormData();
+        rf.append('name',         form.restaurantName);
+        rf.append('description',  form.restaurantDescription);
+        rf.append('address',      form.restaurantAddress);
+        rf.append('contact_phone',form.restaurantContact);
+        rf.append('email',        form.email);
+        rf.append('cuisine_type', form.restaurantCuisine);
+        if (form.restaurantCover) {
+          rf.append('cover_image', form.restaurantCover);
+        }
 
-      // 4. Navigate to login
-      navigate('/login');
+        await axios.post(
+          '/sellers/restaurants',
+          rf,
+          { headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data'
+            }
+          }
+        );
+      }
+
+      // 4) Redirect to dashboard
+      const dest = form.user_type === 'seller'
+        ? '/seller-dashboard/manage'
+        : '/home';
+      navigate(dest);
     } catch (err) {
-      console.error('🔹 signup error:', err);
-      setError('Failed to sign up.');
+      console.error('Signup error:', err);
+      setError(err.response?.data?.message || 'Signup failed.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full p-8 bg-white rounded-lg shadow">
-        <h2 className="text-2xl font-bold text-center mb-6">
-          Create your account
-        </h2>
-        {error && (
-          <div className="mb-4 text-red-500 text-center">{error}</div>
-        )}
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="max-w-md w-full bg-white p-8 rounded-lg shadow space-y-6">
+        <h2 className="text-2xl font-bold text-center">Create your account</h2>
+        {error && <div className="text-red-500 text-center">{error}</div>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
-            placeholder="Full name"
-            className="w-full p-2 border rounded"
-            required
-          />
-          <input
-            name="email"
-            type="email"
-            value={formData.email}
-            onChange={handleChange}
-            placeholder="Email"
-            className="w-full p-2 border rounded"
-            required
-          />
-          <input
-            name="phone"
-            value={formData.phone}
-            onChange={handleChange}
-            placeholder="Phone"
-            className="w-full p-2 border rounded"
-            required
-          />
-          <input
-            name="password"
-            type="password"
-            value={formData.password}
-            onChange={handleChange}
-            placeholder="Password"
-            className="w-full p-2 border rounded"
-            required
-          />
+          {/* User fields */}
+          {['name','email','phone','address','password'].map(field => (
+            <input
+              key={field}
+              name={field}
+              type={field === 'email' ? 'email' : field === 'password' ? 'password' : 'text'}
+              placeholder={field[0].toUpperCase()+field.slice(1)}
+              value={form[field]}
+              onChange={handleChange}
+              required
+              className="w-full p-2 border rounded"
+            />
+          ))}
 
+          {/* Profile picture */}
+          <div>
+            <label className="block mb-1">Profile Picture</label>
+            <input
+              type="file"
+              name="profileImage"
+              accept="image/*"
+              onChange={handleChange}
+              className="w-full"
+            />
+          </div>
+
+          {/* Role toggle */}
           <div className="flex space-x-4">
             <label className="flex items-center">
               <input
                 type="radio"
                 name="user_type"
                 value="customer"
-                checked={formData.user_type === 'customer'}
+                checked={form.user_type==='customer'}
                 onChange={handleChange}
                 className="mr-2"
               />
@@ -122,7 +182,7 @@ export default function SignupPage() {
                 type="radio"
                 name="user_type"
                 value="seller"
-                checked={formData.user_type === 'seller'}
+                checked={form.user_type==='seller'}
                 onChange={handleChange}
                 className="mr-2"
               />
@@ -130,16 +190,80 @@ export default function SignupPage() {
             </label>
           </div>
 
+          {/* Seller-only fields */}
+          {form.user_type === 'seller' && (
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="text-lg font-medium">Restaurant Details</h3>
+
+              <input
+                name="restaurantName"
+                value={form.restaurantName}
+                onChange={handleChange}
+                placeholder="Restaurant Name"
+                className="w-full p-2 border rounded"
+                required
+              />
+
+              <textarea
+                name="restaurantDescription"
+                value={form.restaurantDescription}
+                onChange={handleChange}
+                placeholder="Description"
+                rows={3}
+                className="w-full p-2 border rounded"
+                required
+              />
+
+              <input
+                name="restaurantAddress"
+                value={form.restaurantAddress}
+                onChange={handleChange}
+                placeholder="Restaurant Address"
+                className="w-full p-2 border rounded"
+                required
+              />
+
+              <input
+                name="restaurantContact"
+                value={form.restaurantContact}
+                onChange={handleChange}
+                placeholder="Contact Phone"
+                className="w-full p-2 border rounded"
+                required
+              />
+
+              <input
+                name="restaurantCuisine"
+                value={form.restaurantCuisine}
+                onChange={handleChange}
+                placeholder="Cuisine Type"
+                className="w-full p-2 border rounded"
+                required
+              />
+
+              <div>
+                <label className="block mb-1">Cover Image</label>
+                <input
+                  type="file"
+                  name="restaurantCover"
+                  accept="image/*"
+                  onChange={handleChange}
+                  className="w-full"
+                />
+              </div>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
             className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:opacity-70"
           >
-            {loading ? 'Creating account...' : 'Sign up'}
+            {loading ? 'Creating account…' : 'Sign up'}
           </button>
         </form>
 
-        <p className="mt-4 text-center">
+        <p className="text-center text-sm">
           Already have an account?{' '}
           <Link to="/login" className="text-blue-600 hover:underline">
             Log in
