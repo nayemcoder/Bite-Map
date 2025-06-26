@@ -1,7 +1,6 @@
-// src/pages/SignupPage.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios                 from 'axios';
+import axios from 'axios';
 
 export default function SignupPage() {
   const navigate = useNavigate();
@@ -13,7 +12,7 @@ export default function SignupPage() {
     address: '',
     password: '',
     user_type: 'customer',
-    profileImage: null,       // <-- new
+    profileImage: null,
 
     // seller-only restaurant fields
     restaurantName: '',
@@ -21,15 +20,15 @@ export default function SignupPage() {
     restaurantAddress: '',
     restaurantContact: '',
     restaurantCuisine: '',
-    restaurantCover: null     // <-- new
+    restaurantCover: null
   });
-  const [error, setError]     = useState('');
+
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleChange = e => {
     const { name, value, files } = e.target;
     if (files) {
-      // file input
       setForm(f => ({ ...f, [name]: files[0] }));
     } else {
       setForm(f => ({ ...f, [name]: value }));
@@ -41,15 +40,16 @@ export default function SignupPage() {
     setError('');
 
     // Basic validation
-    const required = ['name','email','phone','address','password'];
+    const required = ['name', 'email', 'phone', 'address', 'password'];
     for (let key of required) {
       if (!form[key]) {
         setError('All fields are required.');
         return;
       }
     }
+
     if (form.user_type === 'seller') {
-      const rs = ['restaurantName','restaurantDescription','restaurantAddress','restaurantContact','restaurantCuisine'];
+      const rs = ['restaurantName', 'restaurantDescription', 'restaurantAddress', 'restaurantContact', 'restaurantCuisine'];
       for (let key of rs) {
         if (!form[key]) {
           setError('Please fill in all restaurant details.');
@@ -60,33 +60,43 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
-      // 1) Create the user
+      // 1) Sign up user (with restaurant fields if seller)
       const res = await axios.post(
         '/auth/signup',
         {
-          name:      form.name,
-          email:     form.email,
-          phone:     form.phone,
-          address:   form.address,
-          password:  form.password,
-          user_type: form.user_type
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          address: form.address,
+          password: form.password,
+          user_type: form.user_type,
+          ...(form.user_type === 'seller' && {
+            restaurantName: form.restaurantName,
+            restaurantDescription: form.restaurantDescription,
+            restaurantAddress: form.restaurantAddress,
+            restaurantContact: form.restaurantContact,
+            restaurantCuisine: form.restaurantCuisine,
+            restaurantCoverFile: form.restaurantCover?.name || null
+          })
         },
-        { headers: { 'Content-Type': 'application/json' } }
+        {
+          headers: { 'Content-Type': 'application/json' }
+        }
       );
+
       const { token, user } = res.data;
       localStorage.setItem('authToken', token);
       localStorage.setItem('user', JSON.stringify(user));
 
-      // 2) Upload profile image if provided
+      // 2) Upload profile image
       if (form.profileImage) {
         const pf = new FormData();
         pf.append('profileImage', form.profileImage);
         await axios.put(
-          form.user_type === 'seller'
-            ? '/sellers/profile'
-            : '/customers/profile',
+          form.user_type === 'seller' ? '/sellers/profile' : '/customers/profile',
           pf,
-          { headers: {
+          {
+            headers: {
               Authorization: `Bearer ${token}`,
               'Content-Type': 'multipart/form-data'
             }
@@ -94,23 +104,15 @@ export default function SignupPage() {
         );
       }
 
-      // 3) If seller, create restaurant with cover image
-      if (form.user_type === 'seller') {
+      // 3) Upload restaurant cover image (optional)
+      if (form.user_type === 'seller' && form.restaurantCover) {
         const rf = new FormData();
-        rf.append('name',         form.restaurantName);
-        rf.append('description',  form.restaurantDescription);
-        rf.append('address',      form.restaurantAddress);
-        rf.append('contact_phone',form.restaurantContact);
-        rf.append('email',        form.email);
-        rf.append('cuisine_type', form.restaurantCuisine);
-        if (form.restaurantCover) {
-          rf.append('cover_image', form.restaurantCover);
-        }
-
-        await axios.post(
-          '/sellers/restaurants',
+        rf.append('cover_image', form.restaurantCover);
+        await axios.put(
+          `/sellers/restaurants/${user.id}`, // Adjust if needed
           rf,
-          { headers: {
+          {
+            headers: {
               Authorization: `Bearer ${token}`,
               'Content-Type': 'multipart/form-data'
             }
@@ -118,10 +120,8 @@ export default function SignupPage() {
         );
       }
 
-      // 4) Redirect to dashboard
-      const dest = form.user_type === 'seller'
-        ? '/seller-dashboard/manage'
-        : '/home';
+      // 4) Redirect based on role
+      const dest = form.user_type === 'seller' ? '/seller-dashboard/manage' : '/home';
       navigate(dest);
     } catch (err) {
       console.error('Signup error:', err);
@@ -139,12 +139,12 @@ export default function SignupPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* User fields */}
-          {['name','email','phone','address','password'].map(field => (
+          {['name', 'email', 'phone', 'address', 'password'].map(field => (
             <input
               key={field}
               name={field}
               type={field === 'email' ? 'email' : field === 'password' ? 'password' : 'text'}
-              placeholder={field[0].toUpperCase()+field.slice(1)}
+              placeholder={field[0].toUpperCase() + field.slice(1)}
               value={form[field]}
               onChange={handleChange}
               required
@@ -171,7 +171,7 @@ export default function SignupPage() {
                 type="radio"
                 name="user_type"
                 value="customer"
-                checked={form.user_type==='customer'}
+                checked={form.user_type === 'customer'}
                 onChange={handleChange}
                 className="mr-2"
               />
@@ -182,7 +182,7 @@ export default function SignupPage() {
                 type="radio"
                 name="user_type"
                 value="seller"
-                checked={form.user_type==='seller'}
+                checked={form.user_type === 'seller'}
                 onChange={handleChange}
                 className="mr-2"
               />
@@ -190,7 +190,7 @@ export default function SignupPage() {
             </label>
           </div>
 
-          {/* Seller-only fields */}
+          {/* Seller fields */}
           {form.user_type === 'seller' && (
             <div className="space-y-4 border-t pt-4">
               <h3 className="text-lg font-medium">Restaurant Details</h3>
