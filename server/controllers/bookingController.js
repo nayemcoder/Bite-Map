@@ -1,3 +1,4 @@
+// controllers/bookingController.js
 const db                    = require("../config/db");
 const { constructImageUrl } = require("../utils/helpers");
 
@@ -16,7 +17,7 @@ exports.createBooking = async (req, res) => {
     booking_end_time,
     number_of_people,
     special_requests = null,
-    menu_items = []  // [{ id, quantity }]
+    menu_items = []    // [{ id, quantity }]
   } = req.body;
 
   try {
@@ -112,7 +113,7 @@ exports.createBooking = async (req, res) => {
       return res.status(500).json({ message: "Restaurant owner not found." });
     }
 
-    // 7) Insert bookings & seller notification
+    // 7) Insert bookings & notify seller
     const conn = await db.getConnection();
     try {
       await conn.beginTransaction();
@@ -139,7 +140,6 @@ exports.createBooking = async (req, res) => {
         );
       }
 
-      // Notify seller
       await conn.query(
         `INSERT INTO notifications (user_id, message, link)
          VALUES (?, ?, ?)`,
@@ -151,7 +151,7 @@ exports.createBooking = async (req, res) => {
       );
 
       await conn.commit();
-      return res.status(201).json({
+      res.status(201).json({
         message: "Booking request created (pending).",
         tablesBooked: tablesRequested.length,
         totalSeats
@@ -159,7 +159,7 @@ exports.createBooking = async (req, res) => {
     } catch (err) {
       await conn.rollback();
       console.error("[createBooking] transaction error:", err);
-      return res.status(500).json({
+      res.status(500).json({
         message: "Database error while creating booking.",
         error: err.message
       });
@@ -168,7 +168,7 @@ exports.createBooking = async (req, res) => {
     }
   } catch (err) {
     console.error("[createBooking] Error:", err);
-    return res.status(500).json({
+    res.status(500).json({
       message: "Internal server error while creating booking.",
       error: err.message
     });
@@ -178,14 +178,16 @@ exports.createBooking = async (req, res) => {
 /**
  * GET /customers/bookings  (customer)
  * GET /seller/bookings     (seller)
- * Returns bookings with enriched menu_items (id, name, price, imageUrl, quantity).
+ * Returns bookings with:
+ *  - menu_items: [ {id,name,price,imageUrl,quantity}, … ]
+ *  - (for seller) customer_imageUrl
  */
 exports.getUserBookings = async (req, res) => {
   try {
     const userId = req.user.id;
     const role   = req.user.role; // 'customer' | 'seller'
 
-    // 1) Fetch base bookings
+    // 1) Fetch raw booking rows
     let sql, params;
     if (role === "customer") {
       sql = `
@@ -200,33 +202,50 @@ exports.getUserBookings = async (req, res) => {
       params = [userId];
     } else {
       sql = `
-        SELECT b.*, u.name AS customer_name, u.email AS customer_email, 
-               u.phone AS customer_phone,
+        SELECT b.*, u.name          AS customer_name,
+                   u.email         AS customer_email,
+                   u.phone         AS customer_phone,
+                   u.profile_image AS customer_profile_image,
                t.table_number, t.capacity
           FROM bookings b
-          JOIN restaurants r       ON b.restaurant_id = r.id
-          JOIN users u             ON b.customer_id   = u.id
+          JOIN restaurants       r ON b.restaurant_id = r.id
+          JOIN users             u ON b.customer_id   = u.id
           JOIN restaurant_tables t ON b.table_id      = t.id
          WHERE r.owner_id = ?
          ORDER BY b.created_at DESC
       `;
       params = [userId];
     }
-    const [bookings] = await db.query(sql, params);
+    const [rows] = await db.query(sql, params);
 
-    // 2) Enrich menu_items
-    const enriched = await Promise.all(bookings.map(async b => {
+    // 2) Enrich each booking
+    const enriched = await Promise.all(rows.map(async b => {
+      // build customer_imageUrl for seller
+      let customer_imageUrl = null;
+      if (role === "seller" && b.customer_profile_image) {
+        customer_imageUrl = constructImageUrl(
+          req,
+          b.customer_profile_image,
+          "user"
+        );
+      }
+
+      // parse menu_items JSON
       let items = [];
       if (b.menu_items) {
         try {
           items = typeof b.menu_items === "string"
             ? JSON.parse(b.menu_items)
             : b.menu_items;
-        } catch { items = []; }
+        } catch {
+          items = [];
+        }
       }
-      if (!items.length) return { ...b, menu_items: [] };
+      if (!items.length) {
+        return { ...b, menu_items: [], customer_imageUrl };
+      }
 
-      // Fetch menu item details
+      // fetch menu items
       const ids = items.map(i => i.id);
       const [menuRows] = await db.query(
         `SELECT id, name, price, image_url
@@ -235,7 +254,7 @@ exports.getUserBookings = async (req, res) => {
         [ids]
       );
 
-      // Merge quantity + full imageUrl
+      // merge quantity & full imageUrl
       const full = menuRows.map(mi => {
         const { quantity } = items.find(i => i.id === mi.id) || {};
         return {
@@ -247,13 +266,13 @@ exports.getUserBookings = async (req, res) => {
         };
       });
 
-      return { ...b, menu_items: full };
+      return { ...b, menu_items: full, customer_imageUrl };
     }));
 
-    return res.json({ data: enriched });
+    res.json({ data: enriched });
   } catch (err) {
     console.error("[getUserBookings] Error:", err);
-    return res.status(500).json({
+    res.status(500).json({
       message: "Internal server error while fetching bookings."
     });
   }
@@ -261,8 +280,7 @@ exports.getUserBookings = async (req, res) => {
 
 /**
  * PUT /bookings/:id/status
- * Seller updates status.
- * If 'confirmed', notifies the customer.
+ * Seller updates status; if 'confirmed', notifies customer.
  */
 exports.updateBookingStatus = async (req, res) => {
   try {
@@ -270,11 +288,12 @@ exports.updateBookingStatus = async (req, res) => {
     const { status } = req.body;
     const ownerId   = req.user.id;
     const allowed   = ["pending", "confirmed", "canceled", "completed"];
+
     if (!allowed.includes(status)) {
       return res.status(400).json({ message: "Invalid status." });
     }
 
-    // Check ownership + fetch customer + times
+    // verify ownership + fetch customer/time
     const [chk] = await db.query(
       `SELECT b.customer_id, b.booking_date, b.booking_time, r.owner_id
          FROM bookings b
@@ -287,19 +306,19 @@ exports.updateBookingStatus = async (req, res) => {
     }
     const { customer_id, booking_date, booking_time } = chk[0];
 
-    // If canceled → delete
+    // cancel => delete
     if (status === "canceled") {
       await db.query(`DELETE FROM bookings WHERE id = ?`, [bookingId]);
       return res.json({ message: "Booking canceled." });
     }
 
-    // Otherwise update
+    // update status
     await db.query(
       `UPDATE bookings SET status = ? WHERE id = ?`,
       [status, bookingId]
     );
 
-    // Notify customer if confirmed
+    // confirmed => notify
     if (status === "confirmed") {
       await db.query(
         `INSERT INTO notifications (user_id, message, link)
@@ -312,22 +331,22 @@ exports.updateBookingStatus = async (req, res) => {
       );
     }
 
-    return res.json({ message: `Booking status updated to ${status}.` });
+    res.json({ message: `Booking status updated to ${status}.` });
   } catch (err) {
     console.error("[updateBookingStatus] Error:", err);
-    return res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error." });
   }
 };
 
 /**
  * DELETE /bookings/:id
- * Both customer & seller can delete.
+ * Customer or seller may delete.
  */
 exports.deleteBooking = async (req, res) => {
   try {
     const bookingId = req.params.id;
     const userId    = req.user.id;
-    const role      = req.user.role; // 'customer' | 'seller'
+    const role      = req.user.role;
     let sql, params;
 
     if (role === "customer") {
@@ -345,11 +364,13 @@ exports.deleteBooking = async (req, res) => {
 
     const [result] = await db.query(sql, params);
     if (!result.affectedRows) {
-      return res.status(404).json({ message: "Booking not found or unauthorized." });
+      return res.status(404).json({
+        message: "Booking not found or not authorized."
+      });
     }
-    return res.json({ message: "Booking deleted successfully." });
+    res.json({ message: "Booking deleted successfully." });
   } catch (err) {
     console.error("[deleteBooking] Error:", err);
-    return res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error." });
   }
 };

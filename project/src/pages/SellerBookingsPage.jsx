@@ -7,11 +7,10 @@ import defaultAvatar   from "../assets/default-profile.png";
 export default function SellerBookingsPage() {
   const navigate         = useNavigate();
   const token            = localStorage.getItem("authToken");
-  const [bookings, setBookings]         = useState([]);
-  const [loading, setLoading]           = useState(true);
+  const [bookings, setBookings]           = useState([]);
+  const [loading, setLoading]             = useState(true);
   const [actionLoading, setActionLoading] = useState({});
 
-  // Format date & time
   const formatDate = d => new Date(d).toLocaleDateString(undefined, {
     year: "numeric", month: "long", day: "numeric"
   });
@@ -24,11 +23,9 @@ export default function SellerBookingsPage() {
     return `${h}:${m.slice(0,2)} ${suffix}`;
   };
 
-  // Lock/unlock a booking’s buttons
   const setBusy = (id, busy) =>
     setActionLoading(a => ({ ...a, [id]: busy }));
 
-  // Change status
   const handleStatus = (id, newStatus) => {
     setBusy(id, true);
     axios
@@ -46,7 +43,6 @@ export default function SellerBookingsPage() {
       .finally(() => setBusy(id, false));
   };
 
-  // Delete booking
   const handleDelete = id => {
     if (!window.confirm("Delete this booking permanently?")) return;
     setBusy(id, true);
@@ -59,7 +55,6 @@ export default function SellerBookingsPage() {
       .finally(() => setBusy(id, false));
   };
 
-  // Fetch seller’s bookings on mount
   useEffect(() => {
     if (!token) return navigate("/login", { replace: true });
     axios
@@ -95,8 +90,7 @@ export default function SellerBookingsPage() {
         const dateLabel = formatDate(b.booking_date);
         const timeLabel = `${formatTime(b.booking_time)} – ${formatTime(b.booking_end_time)}`;
         const totalPrice = b.menu_items.reduce(
-          (sum, mi) => sum + mi.price * mi.quantity,
-          0
+          (sum, mi) => sum + mi.price * mi.quantity, 0
         );
 
         return (
@@ -109,7 +103,7 @@ export default function SellerBookingsPage() {
               {/* Customer Info */}
               <div className="flex items-center space-x-4">
                 <img
-                  src={b.customer_profile || defaultAvatar}
+                  src={b.customer_imageUrl || defaultAvatar}
                   alt={b.customer_name}
                   className="w-12 h-12 rounded-full object-cover"
                 />
@@ -143,8 +137,7 @@ export default function SellerBookingsPage() {
 
             {/* Body */}
             <div className="px-6 py-4 space-y-4">
-              {/* When and Where */}
-              <div className="flex flex-wrap items-center justify-between">
+              <div className="flex flex-wrap justify-between">
                 <div>
                   <p className="text-gray-700">
                     <strong>Date:</strong> {dateLabel}
@@ -163,7 +156,6 @@ export default function SellerBookingsPage() {
                 </div>
               </div>
 
-              {/* Special Requests */}
               {b.special_requests && (
                 <div className="bg-gray-50 p-3 rounded">
                   <p className="text-gray-700">
@@ -172,10 +164,9 @@ export default function SellerBookingsPage() {
                 </div>
               )}
 
-              {/* Pre-ordered Items */}
               {b.menu_items.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-gray-800 font-medium">
+                <div>
+                  <p className="text-gray-800 font-medium mb-2">
                     Pre-ordered Items
                   </p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -192,16 +183,14 @@ export default function SellerBookingsPage() {
                         <p className="mt-2 text-sm font-medium text-center truncate">
                           {mi.name}
                         </p>
-                        <p className="text-xs text-gray-600">
-                          Qty: {mi.quantity}
-                        </p>
+                        <p className="text-xs text-gray-600">Qty: {mi.quantity}</p>
                         <p className="text-xs text-gray-600">
                           ৳{(mi.price * mi.quantity).toFixed(2)}
                         </p>
                       </div>
                     ))}
                   </div>
-                  <div className="text-right font-semibold text-gray-800">
+                  <div className="mt-3 text-right font-semibold text-gray-800">
                     Total: ৳{totalPrice.toFixed(2)}
                   </div>
                 </div>
@@ -209,7 +198,7 @@ export default function SellerBookingsPage() {
             </div>
 
             {/* Actions */}
-            <div className="px-6 py-4 bg-gray-50 flex flex-wrap gap-2 justify-end">
+            <div className="px-6 py-4 bg-gray-50 flex flex-wrap justify-end gap-2">
               {b.status === "pending" && (
                 <>
                   <button
