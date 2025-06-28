@@ -1,161 +1,242 @@
-// src/components/Layout.jsx
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import defaultProfile from "../assets/default-profile.png";
-import logo from "../assets/image.png";
+import { useEffect, useState }            from "react";
+import defaultProfile                     from "../assets/default-profile.png";
+import logo                               from "../assets/image.png";
+import axios                              from "axios";
+import { BellIcon }                       from "@heroicons/react/24/outline";
 
 export default function Layout({ children }) {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const location   = useLocation();
+  const navigate   = useNavigate();
+  const [user, setUser]             = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
 
-  const token = localStorage.getItem("authToken");
-  const role = localStorage.getItem("userRole"); // 'customer'|'seller'
+  const token    = localStorage.getItem("authToken");
+  const role     = localStorage.getItem("userRole");
   const isSeller = role === "seller";
 
+  // Load user & notifications
   useEffect(() => {
-    if (!token) return;
     const raw = localStorage.getItem("user");
     if (raw) {
       try {
-        const parsed = JSON.parse(raw);
-        setUser(parsed);
-
-        const restrictedPaths = ["/home", "/restaurants"];
-        if (isSeller && restrictedPaths.includes(location.pathname)) {
-          navigate("/seller-dashboard/manage", { replace: true });
-        }
+        setUser(JSON.parse(raw));
       } catch {
         localStorage.clear();
         navigate("/login");
+        return;
       }
     }
-  }, [token, navigate, location.pathname, isSeller]);
+    if (token) {
+      axios
+        .get("/notifications", { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => {
+          const list = res.data.data || [];
+          setNotifCount(list.filter(n => !n.is_read).length);
+        })
+        .catch(() => setNotifCount(0));
+    }
+  }, [token, navigate]);
 
   const logout = () => {
     localStorage.clear();
     navigate("/login");
   };
 
-  const customerNav = !isSeller && (
-    <>
-      <Link to="/home" className={linkClass("/home")}>Home</Link>
-      <Link to="/restaurants" className={linkClass("/restaurants")}>Restaurants</Link>
-    </>
-  );
-
-  function linkClass(path) {
-    const active = location.pathname === path;
+  const linkClass = path => {
+    const active = location.pathname.startsWith(path);
     return `px-4 py-2 rounded-lg text-sm font-medium transition ${
-      active ? "bg-blue-800 text-white shadow-lg" : "text-white hover:bg-blue-700"
+      active ? "bg-indigo-800 text-white" : "text-white hover:bg-indigo-700"
     }`;
-  }
-
-  const pillStyle =
-    "flex items-center space-x-2 bg-white text-blue-900 px-3 py-1 rounded-lg hover:shadow transition";
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
-      <header className="bg-blue-900 text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <Link
-              to={isSeller ? "/seller-dashboard/manage" : "/home"}
-              className="flex items-center space-x-2"
-            >
-              <img src={logo} alt="BiteMap" className="w-8 h-8" />
-              <span className="text-xl font-bold">BiteMap</span>
-            </Link>
+      <header className="bg-indigo-900 text-white shadow">
+        <div className="max-w-7xl mx-auto px-4 flex justify-between h-16 items-center">
 
-            <nav className="hidden md:flex items-center space-x-2">
-              {customerNav}
-              <Link to="/about" className={linkClass("/about")}>About</Link>
-              <Link to="/contact" className={linkClass("/contact")}>Contact</Link>
+          {/* Logo */}
+          <Link
+            to={isSeller ? "/seller-dashboard/manage" : "/home"}
+            className="flex items-center space-x-2"
+          >
+            <img src={logo} alt="BiteMap" className="w-8 h-8" />
+            <span className="text-2xl font-bold">BiteMap</span>
+          </Link>
 
-              {isSeller && (
-                <button
-                  onClick={() => navigate("/seller-dashboard/manage")}
-                  className={pillStyle}
+          {/* Desktop Nav */}
+          <nav className="hidden md:flex items-center space-x-2">
+            {isSeller ? (
+              <>
+                <Link
+                  to="/seller-dashboard/manage"
+                  className={linkClass("/seller-dashboard/manage")}
                 >
-                  Manage Dashboard
-                </button>
-              )}
-            </nav>
+                  Dashboard
+                </Link>
+                <Link
+                  to="/seller/bookings"
+                  className={linkClass("/seller/bookings")}
+                >
+                  Bookings
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link to="/home" className={linkClass("/home")}>
+                  Home
+                </Link>
+                <Link to="/restaurants" className={linkClass("/restaurants")}>
+                  Restaurants
+                </Link>
+                <Link to="/my-bookings" className={linkClass("/my-bookings")}>
+                  My Bookings
+                </Link>
+              </>
+            )}
+            <Link to="/about" className={linkClass("/about")}>
+              About
+            </Link>
+            <Link to="/contact" className={linkClass("/contact")}>
+              Contact
+            </Link>
+          </nav>
 
-            <div className="hidden md:flex items-center space-x-4">
-              {token ? (
+          {/* Desktop Profile + Bell */}
+          <div className="hidden md:flex items-center space-x-4">
+            {token ? (
+              <>
+                <Link to="/notifications" className="relative">
+                  <BellIcon className="w-6 h-6 text-white hover:text-gray-200" />
+                  {notifCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-xs text-white rounded-full px-1">
+                      {notifCount}
+                    </span>
+                  )}
+                </Link>
+                <Link
+                  to={isSeller ? "/seller-dashboard" : "/profile"}
+                  className="flex items-center space-x-1 px-3 py-1 bg-white text-indigo-900 rounded-lg"
+                >
+                  <img
+                    src={user?.profileImage || defaultProfile}
+                    alt="Profile"
+                    className="w-6 h-6 rounded-full object-cover"
+                  />
+                  <span className="text-sm">{user?.name || "Profile"}</span>
+                </Link>
+                <button onClick={logout} className="text-sm hover:underline">
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="px-3 py-1 hover:underline">
+                  Login
+                </Link>
+                <Link
+                  to="/signup"
+                  className="px-3 py-1 bg-white text-indigo-900 rounded-lg"
+                >
+                  Sign Up
+                </Link>
+              </>
+            )}
+          </div>
+
+          {/* Mobile toggle */}
+          <button
+            onClick={() => setMobileOpen(v => !v)}
+            className="md:hidden p-2 hover:bg-indigo-800 rounded"
+          >
+            <span className="material-icons text-2xl">
+              {mobileOpen ? "close" : "menu"}
+            </span>
+          </button>
+        </div>
+
+        {/* Mobile Nav */}
+        {mobileOpen && (
+          <div className="md:hidden bg-indigo-800 text-white">
+            <div className="p-4 space-y-3">
+              {isSeller ? (
                 <>
                   <Link
-                    to={isSeller ? "/seller-dashboard" : "/profile"}
-                    className={pillStyle}
+                    to="/seller-dashboard/manage"
+                    className={linkClass("/seller-dashboard/manage") + " block"}
+                    onClick={() => setMobileOpen(false)}
                   >
-                    <img
-                      src={user?.profileImage || defaultProfile}
-                      alt="Profile"
-                      className="w-8 h-8 rounded-full"
-                    />
-                    <span className="text-sm">{user?.name || "Profile"}</span>
+                    Dashboard
                   </Link>
-                  <button onClick={logout} className="text-sm hover:underline">
-                    Logout
-                  </button>
+                  <Link
+                    to="/seller/bookings"
+                    className={linkClass("/seller/bookings") + " block"}
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    Bookings
+                  </Link>
                 </>
               ) : (
                 <>
-                  <Link to="/login" className="px-3 py-1 hover:underline">Login</Link>
                   <Link
-                    to="/signup"
-                    className="bg-white text-blue-900 px-4 py-1 rounded-lg shadow hover:shadow-md transition"
+                    to="/home"
+                    className={linkClass("/home") + " block"}
+                    onClick={() => setMobileOpen(false)}
                   >
-                    Sign Up
+                    Home
+                  </Link>
+                  <Link
+                    to="/restaurants"
+                    className={linkClass("/restaurants") + " block"}
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    Restaurants
+                  </Link>
+                  <Link
+                    to="/my-bookings"
+                    className={linkClass("/my-bookings") + " block"}
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    My Bookings
                   </Link>
                 </>
               )}
-            </div>
+              <Link
+                to="/about"
+                className={linkClass("/about") + " block"}
+                onClick={() => setMobileOpen(false)}
+              >
+                About
+              </Link>
+              <Link
+                to="/contact"
+                className={linkClass("/contact") + " block"}
+                onClick={() => setMobileOpen(false)}
+              >
+                Contact
+              </Link>
 
-            <button
-              onClick={() => setMobileOpen(o => !o)}
-              className="md:hidden p-2 rounded-lg hover:bg-blue-800 transition"
-            >
-              <span className="material-icons">{mobileOpen ? "close" : "menu"}</span>
-            </button>
-          </div>
-        </div>
-
-        {mobileOpen && (
-          <div className="md:hidden bg-blue-800 text-white">
-            <div className="flex flex-col px-4 py-6 space-y-3">
-              {customerNav}
-              <Link to="/about" className={linkClass("/about") + " block"} onClick={() => setMobileOpen(false)}>About</Link>
-              <Link to="/contact" className={linkClass("/contact") + " block"} onClick={() => setMobileOpen(false)}>Contact</Link>
-
-              {isSeller && (
-                <button
-                  onClick={() => { navigate("/seller-dashboard/manage"); setMobileOpen(false); }}
-                  className={`${pillStyle} w-full justify-center`}
-                >
-                  Manage Dashboard
-                </button>
-              )}
-
-              <div className="border-t border-blue-700/50 pt-4">
+              <div className="border-t border-indigo-700 pt-4">
                 {token ? (
                   <>
                     <Link
                       to={isSeller ? "/seller-dashboard" : "/profile"}
-                      className="flex items-center space-x-2 mb-3"
+                      className="flex items-center space-x-2 mb-2"
                       onClick={() => setMobileOpen(false)}
                     >
                       <img
                         src={user?.profileImage || defaultProfile}
                         alt="Profile"
-                        className="w-8 h-8 rounded-full"
+                        className="w-7 h-7 rounded-full object-cover"
                       />
                       <span>{user?.name || "Profile"}</span>
                     </Link>
                     <button
-                      onClick={() => { logout(); setMobileOpen(false); }}
+                      onClick={() => {
+                        logout();
+                        setMobileOpen(false);
+                      }}
                       className="text-sm hover:underline"
                     >
                       Logout
@@ -165,15 +246,15 @@ export default function Layout({ children }) {
                   <>
                     <Link
                       to="/login"
+                      className="block"
                       onClick={() => setMobileOpen(false)}
-                      className="block px-3 py-2 hover:underline"
                     >
                       Login
                     </Link>
                     <Link
                       to="/signup"
+                      className="block mt-2 bg-white text-indigo-900 px-4 py-2 rounded-lg text-center"
                       onClick={() => setMobileOpen(false)}
-                      className="bg-white text-blue-900 block px-4 py-2 rounded-lg shadow transition text-center"
                     >
                       Sign Up
                     </Link>
@@ -185,9 +266,8 @@ export default function Layout({ children }) {
         )}
       </header>
 
-      <main className="flex-grow bg-gray-50">{children}</main>
-
-      <footer className="bg-blue-900 border-t border-blue-800 text-gray-400 text-center py-4">
+      <main className="flex-grow bg-gray-100">{children}</main>
+      <footer className="bg-indigo-900 text-gray-200 text-center py-4">
         © 2022–2025 BiteMap
       </footer>
     </div>

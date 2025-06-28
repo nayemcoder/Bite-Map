@@ -15,8 +15,6 @@ export default function ProfilePage() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  // Track in-flight cancels & reviews
   const [cancelling, setCancelling] = useState({});
   const [submitting, setSubmitting] = useState({});
   const [reviews, setReviews] = useState({});
@@ -26,14 +24,12 @@ export default function ProfilePage() {
     if (!token) return navigate("/login");
     axios
       .get(endpoint, { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => {
-        setProfile(role === "seller" ? res.data.user : res.data);
-      })
+      .then(res => setProfile(role === "seller" ? res.data.user : res.data))
       .catch(() => navigate("/login"))
       .finally(() => setLoading(false));
   }, [token, endpoint, role, navigate]);
 
-  // Load bookings for customers
+  // Load bookings for customer
   useEffect(() => {
     if (!profile || role !== "customer") return;
     axios
@@ -43,19 +39,18 @@ export default function ProfilePage() {
       .then(res => {
         const data = res.data.data || [];
         setBookings(data);
-        // init review forms
         const init = {};
         data.forEach(b => {
           init[b.id] = { rating: 5, comment: "" };
         });
         setReviews(init);
       })
-      .catch(() => setError("Could not load your bookings."));
+      .catch(() => setError("Failed to load your bookings."));
   }, [profile, role, token]);
 
-  // Cancel only "pending" bookings
+  // Cancel booking
   const cancelBooking = async id => {
-    if (!window.confirm("Cancel this booking?")) return;
+    if (!window.confirm("Are you sure you want to cancel this booking?")) return;
     setCancelling(c => ({ ...c, [id]: true }));
     try {
       await axios.delete(`/bookings/${id}`, {
@@ -63,7 +58,7 @@ export default function ProfilePage() {
       });
       setBookings(bs => bs.filter(b => b.id !== id));
     } catch {
-      alert("Unable to cancel booking.");
+      alert("Could not cancel booking.");
     } finally {
       setCancelling(c => ({ ...c, [id]: false }));
     }
@@ -76,25 +71,24 @@ export default function ProfilePage() {
     }));
   };
 
-  // Submit review for "completed" bookings
+  // Submit review
   const submitReview = async bookingId => {
     const { rating, comment } = reviews[bookingId] || {};
     if (!rating) return alert("Please select a rating.");
     const booking = bookings.find(b => b.id === bookingId);
-    const restaurantId = booking?.restaurant_id;
-    if (!restaurantId) return alert("Invalid restaurant ID.");
+    if (!booking) return;
 
     setSubmitting(s => ({ ...s, [bookingId]: true }));
     try {
       await axios.post(
-        `/restaurants/${restaurantId}/reviews`,
+        `/restaurants/${booking.restaurant_id}/reviews`,
         { rating, comment },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      alert("Review submitted. Thank you!");
+      alert("Thank you for your review!");
       setBookings(bs => bs.filter(b => b.id !== bookingId));
     } catch (err) {
-      alert(err.response?.data?.message || "Could not submit review");
+      alert(err.response?.data?.message || "Failed to submit review.");
     } finally {
       setSubmitting(s => ({ ...s, [bookingId]: false }));
     }
@@ -102,25 +96,24 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center p-10">
+      <div className="flex justify-center items-center h-screen">
         <svg
-          role="status"
-          className="animate-spin h-8 w-8 text-indigo-600"
+          className="animate-spin h-10 w-10 text-indigo-600"
           viewBox="0 0 24 24"
         >
           <circle
-            className="opacity-25"
             cx="12"
             cy="12"
             r="10"
             stroke="currentColor"
             strokeWidth="4"
             fill="none"
+            className="opacity-25"
           />
           <path
-            className="opacity-75"
-            fill="currentColor"
             d="M4 12a8 8 0 018-8v8z"
+            fill="currentColor"
+            className="opacity-75"
           />
         </svg>
       </div>
@@ -128,132 +121,155 @@ export default function ProfilePage() {
   }
 
   if (!profile) {
-    return (
-      <p className="p-6 text-center text-red-500">
-        Failed to load profile.
-      </p>
-    );
+    return <p className="text-center text-red-500 mt-10">Failed to load profile.</p>;
   }
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-8">
       {/* Profile Card */}
-      <div className="relative bg-white rounded-lg shadow-lg p-6 flex flex-col items-center">
+      <div className="relative bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl shadow-xl p-6 flex flex-col items-center">
         <button
           onClick={() =>
-            navigate(
-              role === "seller" ? "/edit-seller-profile" : "/edit-profile"
-            )
+            navigate(role === "seller" ? "/edit-seller-profile" : "/edit-profile")
           }
-          className="absolute top-4 right-4 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-full"
+          className="absolute top-4 right-4 bg-white text-indigo-600 hover:bg-gray-100 px-3 py-1 rounded-full text-sm font-medium transition"
         >
-          Edit Profile
+          Edit
         </button>
         <img
           src={profile.profileImage || defaultProfile}
           alt="Profile"
-          className="w-32 h-32 rounded-full border-4 border-indigo-100 mb-4 object-cover"
+          className="w-32 h-32 rounded-full border-4 border-white mb-4 object-cover"
         />
-        <h2 className="text-2xl font-semibold">{profile.name}</h2>
-        <p className="text-gray-600">{profile.email}</p>
-        <p className="text-gray-600">{profile.phone}</p>
-        <p className="text-gray-600">{profile.address}</p>
-        <span className="mt-3 px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm">
-          {role === "seller" ? "Restaurant Owner" : "Customer"}
+        <h2 className="text-2xl font-bold">{profile.name}</h2>
+        <p className="mt-1">{profile.email}</p>
+        <p>{profile.phone}</p>
+        <p className="text-center">{profile.address}</p>
+        <span className="mt-3 px-3 py-1 bg-white text-indigo-600 rounded-full text-sm uppercase">
+          {role === "seller" ? "Seller" : "Customer"}
         </span>
       </div>
 
-      {/* Customer's Bookings */}
+      {/* Customer Bookings */}
       {role === "customer" && (
-        <div className="bg-white rounded-lg shadow-lg p-6 space-y-6">
-          <h3 className="text-xl font-semibold mb-4">Your Bookings</h3>
-          {error && <p className="text-red-500 mb-4">{error}</p>}
-          {!bookings.length ? (
-            <p className="text-gray-600">No bookings yet.</p>
-          ) : (
-            bookings.map(b => (
-              <div key={b.id} className="border-b pb-4">
-                <div className="flex justify-between items-center">
+        <div className="space-y-6">
+          <h3 className="text-xl font-semibold">Your Bookings</h3>
+          {error && <p className="text-red-500">{error}</p>}
+          {!bookings.length && <p className="text-gray-600">No bookings yet.</p>}
+
+          <div className="space-y-4">
+            {bookings.map(b => (
+              <div
+                key={b.id}
+                className="bg-white rounded-lg shadow-md overflow-hidden"
+              >
+                {/* Header */}
+                <div className="flex justify-between items-center px-6 py-4 bg-gray-50">
                   <div>
-                    <p className="font-medium">{b.restaurant_name}</p>
-                    <p className="text-gray-500 text-sm">
+                    <h4 className="text-lg font-medium">{b.restaurant_name}</h4>
+                    <p className="text-sm text-gray-600">
                       {b.booking_date} @ {b.booking_time}–{b.booking_end_time}
                     </p>
-                    <p className="text-gray-500 text-sm">
-                      Table {b.table_number} ({b.capacity} seats)
-                    </p>
-                    <p
-                      className={`capitalize inline-block px-2 py-1 rounded-full text-sm ${
-                        b.status === "confirmed"
-                          ? "bg-blue-100 text-blue-800"
-                          : b.status === "canceled"
-                          ? "bg-red-100 text-red-800"
-                          : b.status === "completed"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-yellow-100 text-yellow-800"
-                      }`}
-                    >
-                      {b.status}
-                    </p>
                   </div>
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs uppercase font-semibold ${
+                      b.status === "confirmed"
+                        ? "bg-blue-100 text-blue-800"
+                        : b.status === "pending"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : b.status === "completed"
+                        ? "bg-green-100 text-green-800"
+                        : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {b.status}
+                  </span>
+                </div>
 
-                  {/* Only pending bookings may be canceled */}
-                  {b.status === "pending" && !cancelling[b.id] && (
-                    <button
-                      onClick={() => cancelBooking(b.id)}
-                      className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-full text-xs"
-                    >
-                      Cancel
-                    </button>
+                {/* Body */}
+                <div className="px-6 py-4 space-y-2">
+                  <p className="text-sm">
+                    <strong>Table:</strong> {b.table_number} ({b.capacity} seats)
+                  </p>
+                  {b.menu_items?.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium mb-1">Pre-ordered Items:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {b.menu_items.map(mi => (
+                          <span
+                            key={mi.id}
+                            className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs"
+                          >
+                            ID {mi.id} ×{mi.quantity}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   )}
-                  {cancelling[b.id] && (
-                    <button
-                      disabled
-                      className="px-3 py-1 bg-red-300 text-white rounded-full text-xs cursor-not-allowed"
-                    >
-                      Cancelling…
-                    </button>
+                  {b.special_requests && (
+                    <p className="text-sm">
+                      <strong>Notes:</strong> {b.special_requests}
+                    </p>
                   )}
                 </div>
 
-                {/* Review UI for completed bookings */}
-                {b.status === "completed" && (
-                  <div className="mt-4 bg-gray-50 p-4 rounded-lg">
-                    <p className="font-medium mb-2">Leave a review:</p>
-                    <select
-                      value={reviews[b.id]?.rating}
-                      onChange={e =>
-                        handleReviewChange(b.id, "rating", e.target.value)
-                      }
-                      className="border p-2 rounded mb-2"
-                    >
-                      {[5, 4, 3, 2, 1].map(n => (
-                        <option key={n} value={n}>
-                          {n} star{n > 1 ? "s" : ""}
-                        </option>
-                      ))}
-                    </select>
-                    <textarea
-                      rows="2"
-                      placeholder="Your comments..."
-                      value={reviews[b.id]?.comment}
-                      onChange={e =>
-                        handleReviewChange(b.id, "comment", e.target.value)
-                      }
-                      className="w-full border p-2 rounded mb-2"
-                    />
+                {/* Actions & Review */}
+                <div className="px-6 py-4 bg-gray-50 flex flex-col gap-3">
+                  {/* Cancel */}
+                  {b.status === "pending" && (
                     <button
-                      onClick={() => submitReview(b.id)}
-                      disabled={submitting[b.id]}
-                      className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+                      onClick={() => cancelBooking(b.id)}
+                      disabled={cancelling[b.id]}
+                      className="self-start bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-full text-sm font-medium transition disabled:opacity-50"
                     >
-                      {submitting[b.id] ? "Submitting…" : "Submit Review"}
+                      {cancelling[b.id] ? "Cancelling…" : "Cancel Booking"}
                     </button>
-                  </div>
-                )}
+                  )}
+
+                  {/* Review for completed */}
+                  {b.status === "completed" && (
+                    <div className="space-y-2">
+                      <p className="font-medium">Leave a review:</p>
+                      <div className="flex items-center space-x-1">
+                        {[1, 2, 3, 4, 5].map(star => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() =>
+                              handleReviewChange(b.id, "rating", star)
+                            }
+                            className={`text-2xl ${
+                              reviews[b.id]?.rating >= star
+                                ? "text-yellow-400"
+                                : "text-gray-300"
+                            } transition`}
+                          >
+                            ★
+                          </button>
+                        ))}
+                      </div>
+                      <textarea
+                        rows="2"
+                        placeholder="Write your comments..."
+                        value={reviews[b.id]?.comment}
+                        onChange={e =>
+                          handleReviewChange(b.id, "comment", e.target.value)
+                        }
+                        className="w-full border p-2 rounded"
+                      />
+                      <button
+                        onClick={() => submitReview(b.id)}
+                        disabled={submitting[b.id]}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-medium transition disabled:opacity-50"
+                      >
+                        {submitting[b.id] ? "Submitting…" : "Submit Review"}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            ))
-          )}
+            ))}
+          </div>
         </div>
       )}
     </div>

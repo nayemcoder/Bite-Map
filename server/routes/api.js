@@ -1,3 +1,4 @@
+// routes/index.js
 const express                  = require("express");
 const router                   = express.Router();
 const path                     = require("path");
@@ -9,6 +10,7 @@ const restaurantController     = require("../controllers/restaurantController");
 const bookingController        = require("../controllers/bookingController");
 const menuController           = require("../controllers/menuController");
 const reviewController         = require("../controllers/reviewController");
+const notificationController   = require("../controllers/notificationController");
 
 // Auth middleware
 const { authenticateToken, authorizeRoles } = require("../middlewares/auth");
@@ -18,6 +20,23 @@ const upload = require("../config/multer");
 // Simple logger
 const logRequest = (req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+};
+
+// ——————————————
+// Booking validation middleware
+// ——————————————
+const validateBookingPayload = (req, res, next) => {
+  const { table_id, table_ids } = req.body;
+
+  // Must supply either single table_id or array table_ids
+  const singleOK = table_id && typeof table_id === "number";
+  const multiOK  = Array.isArray(table_ids) && table_ids.length > 0;
+  if (!singleOK && !multiOK) {
+    return res.status(400).json({
+      message: "You must supply either a numeric table_id or a non-empty table_ids array."
+    });
+  }
   next();
 };
 
@@ -61,17 +80,9 @@ router.put(
 
 /** RESTAURANTS **/
 // List all restaurants
-router.get(
-  "/restaurants",
-  logRequest,
-  restaurantController.getAllRestaurants
-);
+router.get("/restaurants", logRequest, restaurantController.getAllRestaurants);
 // Get one restaurant
-router.get(
-  "/restaurants/:id",
-  logRequest,
-  restaurantController.getRestaurant
-);
+router.get("/restaurants/:id", logRequest, restaurantController.getRestaurant);
 // Get available tables (public)
 router.get(
   "/restaurants/:id/available-tables",
@@ -114,11 +125,7 @@ router.put(
 
 /** MENU ITEMS **/
 // Public: list menu
-router.get(
-  "/restaurants/:id/menu",
-  logRequest,
-  menuController.getMenu
-);
+router.get("/restaurants/:id/menu", logRequest, menuController.getMenu);
 // Seller-only: add menu item
 router.post(
   "/restaurants/:id/menu",
@@ -170,13 +177,17 @@ router.delete(
 );
 
 /** BOOKINGS **/
+// Create booking (customer)
 router.post(
   "/bookings",
   logRequest,
   authenticateToken,
   authorizeRoles(["customer"]),
+  validateBookingPayload,
   bookingController.createBooking
 );
+
+// Customer can view their bookings
 router.get(
   "/customers/bookings",
   logRequest,
@@ -184,13 +195,17 @@ router.get(
   authorizeRoles(["customer"]),
   bookingController.getUserBookings
 );
+
+// Seller can view all bookings for their restaurants
 router.get(
-  "/bookings",
+  "/seller/bookings",
   logRequest,
   authenticateToken,
   authorizeRoles(["seller"]),
   bookingController.getUserBookings
 );
+
+// Update booking status (seller)
 router.put(
   "/bookings/:id/status",
   logRequest,
@@ -198,12 +213,30 @@ router.put(
   authorizeRoles(["seller"]),
   bookingController.updateBookingStatus
 );
+
+// Delete booking (customer or seller)
 router.delete(
   "/bookings/:id",
   logRequest,
   authenticateToken,
   authorizeRoles(["customer", "seller"]),
   bookingController.deleteBooking
+);
+
+/** NOTIFICATIONS **/
+// List notifications for current user
+router.get(
+  "/notifications",
+  logRequest,
+  authenticateToken,
+  notificationController.getNotifications
+);
+// Mark a notification as read
+router.put(
+  "/notifications/:id/read",
+  logRequest,
+  authenticateToken,
+  notificationController.markRead
 );
 
 module.exports = router;

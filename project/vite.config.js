@@ -1,5 +1,6 @@
+// vite.config.js
 import { defineConfig } from 'vite';
-import react       from '@vitejs/plugin-react';
+import react            from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
@@ -8,28 +9,40 @@ export default defineConfig({
       '/auth': {
         target: 'http://localhost:8080',
         changeOrigin: true,
-        secure: false
+        secure: false,
       },
       '/customers': {
         target: 'http://localhost:8080',
         changeOrigin: true,
-        secure: false
+        secure: false,
       },
       '/sellers': {
         target: 'http://localhost:8080',
         changeOrigin: true,
-        secure: false
+        secure: false,
       },
       '/restaurants': {
         target: 'http://localhost:8080',
         changeOrigin: true,
-        secure: false
+        secure: false,
       },
       '/bookings': {
         target: 'http://localhost:8080',
         changeOrigin: true,
-        secure: false
-      }
-    }
-  }
+        secure: false,
+      },
+      // <-- newly added
+      '/seller/bookings': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/notifications': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false,
+      },
+      // end new entries
+    },
+  },
 });
