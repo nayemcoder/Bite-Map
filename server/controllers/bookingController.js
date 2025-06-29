@@ -91,7 +91,7 @@ exports.createBooking = async (req, res) => {
     if (menuIds.length) {
       const [validMenu] = await db.query(
         `SELECT id FROM menu_items
-         WHERE id IN (?) AND restaurant_id = ?`,
+           WHERE id IN (?) AND restaurant_id = ?`,
         [menuIds, restaurant_id]
       );
       if (validMenu.length !== menuIds.length) {
@@ -175,10 +175,12 @@ exports.createBooking = async (req, res) => {
   }
 };
 
+
 /**
  * GET /customers/bookings  (customer)
  * GET /seller/bookings     (seller)
  * Returns bookings with:
+ *  - restaurant_image, restaurant_address, cuisineType
  *  - menu_items: [ {id,name,price,imageUrl,quantity}, … ]
  *  - (for seller) customer_imageUrl
  */
@@ -187,32 +189,45 @@ exports.getUserBookings = async (req, res) => {
     const userId = req.user.id;
     const role   = req.user.role; // 'customer' | 'seller'
 
-    // 1) Fetch raw booking rows
+    // 1) Fetch raw booking rows, include restaurant metadata
     let sql, params;
     if (role === "customer") {
       sql = `
-        SELECT b.*, r.name AS restaurant_name,
-               t.table_number, t.capacity
-          FROM bookings b
-          JOIN restaurants r       ON b.restaurant_id = r.id
-          JOIN restaurant_tables t ON b.table_id      = t.id
-         WHERE b.customer_id = ?
-         ORDER BY b.created_at DESC
+        SELECT
+          b.*,
+          r.name            AS restaurant_name,
+          r.cover_image     AS restaurant_cover_image,
+          r.address         AS restaurant_address,
+          r.cuisine_type    AS restaurant_cuisine,
+          t.table_number,
+          t.capacity
+        FROM bookings b
+        JOIN restaurants r ON b.restaurant_id = r.id
+        JOIN restaurant_tables t ON b.table_id = t.id
+        WHERE b.customer_id = ?
+        ORDER BY b.created_at DESC
       `;
       params = [userId];
     } else {
       sql = `
-        SELECT b.*, u.name          AS customer_name,
-                   u.email         AS customer_email,
-                   u.phone         AS customer_phone,
-                   u.profile_image AS customer_profile_image,
-               t.table_number, t.capacity
-          FROM bookings b
-          JOIN restaurants       r ON b.restaurant_id = r.id
-          JOIN users             u ON b.customer_id   = u.id
-          JOIN restaurant_tables t ON b.table_id      = t.id
-         WHERE r.owner_id = ?
-         ORDER BY b.created_at DESC
+        SELECT
+          b.*,
+          r.name            AS restaurant_name,
+          r.cover_image     AS restaurant_cover_image,
+          r.address         AS restaurant_address,
+          r.cuisine_type    AS restaurant_cuisine,
+          u.name            AS customer_name,
+          u.email           AS customer_email,
+          u.phone           AS customer_phone,
+          u.profile_image   AS customer_profile_image,
+          t.table_number,
+          t.capacity
+        FROM bookings b
+        JOIN restaurants r ON b.restaurant_id = r.id
+        JOIN users u       ON b.customer_id   = u.id
+        JOIN restaurant_tables t ON b.table_id = t.id
+        WHERE r.owner_id = ?
+        ORDER BY b.created_at DESC
       `;
       params = [userId];
     }
@@ -220,7 +235,12 @@ exports.getUserBookings = async (req, res) => {
 
     // 2) Enrich each booking
     const enriched = await Promise.all(rows.map(async b => {
-      // build customer_imageUrl for seller
+      // restaurant image
+      const restaurant_image = b.restaurant_cover_image
+        ? constructImageUrl(req, b.restaurant_cover_image, "restaurant")
+        : null;
+
+      // customer image (for seller)
       let customer_imageUrl = null;
       if (role === "seller" && b.customer_profile_image) {
         customer_imageUrl = constructImageUrl(
@@ -241,32 +261,35 @@ exports.getUserBookings = async (req, res) => {
           items = [];
         }
       }
-      if (!items.length) {
-        return { ...b, menu_items: [], customer_imageUrl };
+
+      // fetch detailed menu item data
+      let fullItems = [];
+      if (items.length) {
+        const ids = items.map(i => i.id);
+        const [menuRows] = await db.query(
+          `SELECT id, name, price, image_url FROM menu_items WHERE id IN (?)`,
+          [ids]
+        );
+        fullItems = menuRows.map(mi => {
+          const { quantity } = items.find(i => i.id === mi.id) || {};
+          return {
+            id:       mi.id,
+            name:     mi.name,
+            price:    mi.price,
+            quantity: quantity || 0,
+            imageUrl: constructImageUrl(req, mi.image_url, "restaurant")
+          };
+        });
       }
 
-      // fetch menu items
-      const ids = items.map(i => i.id);
-      const [menuRows] = await db.query(
-        `SELECT id, name, price, image_url
-           FROM menu_items
-          WHERE id IN (?)`,
-        [ids]
-      );
-
-      // merge quantity & full imageUrl
-      const full = menuRows.map(mi => {
-        const { quantity } = items.find(i => i.id === mi.id) || {};
-        return {
-          id: mi.id,
-          name: mi.name,
-          price: mi.price,
-          imageUrl: constructImageUrl(req, mi.image_url, "restaurant"),
-          quantity: quantity || 0
-        };
-      });
-
-      return { ...b, menu_items: full, customer_imageUrl };
+      return {
+        ...b,
+        restaurant_image,
+        restaurant_address: b.restaurant_address,
+        cuisineType:        b.restaurant_cuisine,
+        customer_imageUrl,
+        menu_items: fullItems
+      };
     }));
 
     res.json({ data: enriched });
@@ -277,6 +300,7 @@ exports.getUserBookings = async (req, res) => {
     });
   }
 };
+
 
 /**
  * PUT /bookings/:id/status
@@ -337,6 +361,7 @@ exports.updateBookingStatus = async (req, res) => {
     res.status(500).json({ message: "Internal server error." });
   }
 };
+
 
 /**
  * DELETE /bookings/:id

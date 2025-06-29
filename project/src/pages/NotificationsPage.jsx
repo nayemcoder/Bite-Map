@@ -1,50 +1,49 @@
 // src/pages/NotificationsPage.jsx
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import { useNavigate }                 from "react-router-dom";
+import axios                           from "axios";
 
 export default function NotificationsPage() {
   const [notes, setNotes] = useState([]);
-  const navigate = useNavigate();
-  const token    = localStorage.getItem("authToken");
+  const navigate          = useNavigate();
+  const token             = localStorage.getItem("authToken");
+  const role              = localStorage.getItem("userRole"); // 'seller' or 'customer'
 
   useEffect(() => {
-    if (!token) {
-      console.warn("No token—redirecting to login");
-      navigate("/login");
-      return;
-    }
-
-    console.log("NotificationsPage: fetching /notifications");
+    if (!token) return navigate("/login");
     axios
       .get("/notifications", {
         headers: { Authorization: `Bearer ${token}` }
       })
-      .then(r => {
-        console.log("Notifications response:", r.data.data);
-        setNotes(r.data.data || []);
-      })
-      .catch(err => {
-        console.error("Failed to load notifications:", err);
-        setNotes([]);
-      });
+      .then(r => setNotes(r.data.data || []))
+      .catch(() => setNotes([]));
   }, [navigate, token]);
 
-  const markRead = id => {
-    if (!token) return;
-    console.log("Marking read:", id);
-    axios
-      .put(`/notifications/${id}/read`, null, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      .then(() => {
-        setNotes(ns =>
-          ns.map(n => (n.id === id ? { ...n, is_read: true } : n))
-        );
-      })
-      .catch(err => {
-        console.error("Failed to mark read:", err);
-      });
+  const markRead = async id => {
+    try {
+      await axios.put(
+        `/notifications/${id}/read`,
+        null,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setNotes(ns =>
+        ns.map(n => (n.id === id ? { ...n, is_read: true } : n))
+      );
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleClick = async note => {
+    if (!note.is_read) {
+      await markRead(note.id);
+    }
+    // redirect based on user role
+    if (role === "seller") {
+      navigate("/seller/bookings");
+    } else {
+      navigate("/profile");
+    }
   };
 
   return (
@@ -56,8 +55,9 @@ export default function NotificationsPage() {
       {notes.map(n => (
         <div
           key={n.id}
-          className={`p-4 rounded-lg shadow flex justify-between items-center ${
-            n.is_read ? "bg-gray-50" : "bg-indigo-50"
+          onClick={() => handleClick(n)}
+          className={`p-4 rounded-lg shadow flex justify-between items-center cursor-pointer transition ${
+            n.is_read ? "bg-gray-50 hover:bg-gray-100" : "bg-indigo-50 hover:bg-indigo-100"
           }`}
         >
           <div>
@@ -68,7 +68,10 @@ export default function NotificationsPage() {
           </div>
           {!n.is_read && (
             <button
-              onClick={() => markRead(n.id)}
+              onClick={e => {
+                e.stopPropagation();
+                markRead(n.id);
+              }}
               className="px-2 py-1 bg-indigo-600 text-white rounded text-xs"
             >
               Mark read

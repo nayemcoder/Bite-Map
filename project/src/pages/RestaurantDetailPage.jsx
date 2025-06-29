@@ -26,12 +26,12 @@ export default function RestaurantDetailPage() {
     table_ids: [],
     number_of_people: 1,
     special_requests: "",
-    menu_items: []       // {id, quantity}
+    menu_items: []     // {id, quantity}
   });
   const [error, setError]               = useState("");
   const [seatingMessage, setSeatingMessage] = useState("");
 
-  // Fetch restaurant
+  // 1) Fetch restaurant
   useEffect(() => {
     axios.get(`/restaurants/${id}`)
       .then(res => setRest(res.data))
@@ -39,7 +39,7 @@ export default function RestaurantDetailPage() {
       .finally(() => setLoadingRest(false));
   }, [id, navigate]);
 
-  // Fetch menu
+  // 2) Fetch menu
   useEffect(() => {
     if (!rest) return;
     setLoadingMenu(true);
@@ -49,18 +49,23 @@ export default function RestaurantDetailPage() {
       .finally(() => setLoadingMenu(false));
   }, [rest, id]);
 
-  // Fetch available tables
+  // 3) Fetch available tables when date/time chosen
   useEffect(() => {
     const { booking_date, booking_start_time, booking_end_time } = form;
-    if (booking_date && booking_start_time && booking_end_time &&
-        booking_end_time > booking_start_time) {
+    if (
+      booking_date &&
+      booking_start_time &&
+      booking_end_time &&
+      booking_end_time > booking_start_time
+    ) {
       setLoadingTables(true);
-      axios.get(`/restaurants/${id}/available-tables`, {
-        params: { booking_date, booking_start_time, booking_end_time }
-      })
-      .then(res => setAvailableTables(res.data.data || []))
-      .catch(() => setAvailableTables([]))
-      .finally(() => setLoadingTables(false));
+      axios
+        .get(`/restaurants/${id}/available-tables`, {
+          params: { booking_date, booking_start_time, booking_end_time }
+        })
+        .then(res => setAvailableTables(res.data.data || []))
+        .catch(() => setAvailableTables([]))
+        .finally(() => setLoadingTables(false));
     } else {
       setAvailableTables([]);
     }
@@ -71,7 +76,7 @@ export default function RestaurantDetailPage() {
     id
   ]);
 
-  // Live seating check
+  // 4) Live seating check
   useEffect(() => {
     if (!availableTables.length || !form.table_ids.length) {
       setSeatingMessage("");
@@ -83,12 +88,12 @@ export default function RestaurantDetailPage() {
 
     setSeatingMessage(
       form.number_of_people > total
-        ? `⚠️ Only ${total} seats—add more tables.`
+        ? `⚠️ Only ${total} seats! Please add more tables.`
         : `✅ ${total} seats available.`
     );
   }, [form.table_ids, form.number_of_people, availableTables]);
 
-  // Generic input change
+  // Generic form change
   const handleChange = e => {
     const { name, value, type } = e.target;
     if (type === "number") {
@@ -98,7 +103,7 @@ export default function RestaurantDetailPage() {
     }
   };
 
-  // Toggle table checkbox
+  // Toggle table selection
   const toggleTable = id => {
     setForm(f => {
       const ids = f.table_ids.includes(id)
@@ -108,7 +113,7 @@ export default function RestaurantDetailPage() {
     });
   };
 
-  // Toggle menu item
+  // Toggle menu item in order
   const toggleMenuItem = item => {
     setForm(f => {
       const exists = f.menu_items.find(mi => mi.id === item.id);
@@ -126,7 +131,7 @@ export default function RestaurantDetailPage() {
     });
   };
 
-  // Change menu qty
+  // Change quantity for a menu item
   const changeMenuQty = (id, qty) => {
     setForm(f => ({
       ...f,
@@ -136,7 +141,7 @@ export default function RestaurantDetailPage() {
     }));
   };
 
-  // Remove menu item
+  // Remove a menu item entirely
   const removeMenuItem = id => {
     setForm(f => ({
       ...f,
@@ -148,9 +153,15 @@ export default function RestaurantDetailPage() {
   const handleSubmit = async e => {
     e.preventDefault();
     setError("");
+
     const {
-      booking_date, booking_start_time, booking_end_time,
-      table_ids, number_of_people, special_requests, menu_items
+      booking_date,
+      booking_start_time,
+      booking_end_time,
+      table_ids,
+      number_of_people,
+      special_requests,
+      menu_items
     } = form;
 
     if (!table_ids.length) {
@@ -179,22 +190,36 @@ export default function RestaurantDetailPage() {
       );
       navigate("/profile");
     } catch (err) {
-      setError(err.response?.data?.message || "Booking failed");
+      setError(err.response?.data?.message || "Booking failed.");
     }
   };
 
   if (loadingRest) {
     return (
       <div className="flex justify-center items-center h-screen">
-        <svg className="animate-spin h-10 w-10 text-indigo-600" viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="10"
-            stroke="currentColor" strokeWidth="4" fill="none" className="opacity-25"/>
-          <path d="M4 12a8 8 0 018-8v8z"
-            fill="currentColor" className="opacity-75"/>
+        <svg
+          className="animate-spin h-10 w-10 text-indigo-600"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+            fill="none"
+            className="opacity-25"
+          />
+          <path
+            d="M4 12a8 8 0 018-8v8z"
+            fill="currentColor"
+            className="opacity-75"
+          />
         </svg>
       </div>
     );
   }
+
   if (!rest) return null;
 
   const fallbackMap = `
@@ -209,7 +234,9 @@ export default function RestaurantDetailPage() {
       {/* Hero */}
       <div
         className="relative h-[60vh] bg-cover bg-center"
-        style={{ backgroundImage: `url(${rest.coverImage||defaultCover})` }}
+        style={{
+          backgroundImage: `url(${rest.coverImage || defaultCover})`
+        }}
       >
         <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
           <div className="text-center text-white px-4">
@@ -222,12 +249,19 @@ export default function RestaurantDetailPage() {
       <div className="max-w-7xl mx-auto px-4 py-12 grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* About & Menu */}
         <div className="lg:col-span-2 space-y-8">
+          {/* About Section */}
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-2xl font-semibold mb-4">About</h2>
             <p className="text-gray-700 mb-4">{rest.description}</p>
             <div className="flex flex-wrap gap-4 text-gray-600">
-              <div className="flex items-center"><span className="mr-2">📞</span>{rest.contactPhone}</div>
-              <div className="flex items-center"><span className="mr-2">📍</span>{rest.address}</div>
+              <div className="flex items-center">
+                <span className="mr-2">📞</span>
+                {rest.contactPhone}
+              </div>
+              <div className="flex items-center">
+                <span className="mr-2">📍</span>
+                {rest.address}
+              </div>
             </div>
           </div>
 
@@ -242,43 +276,56 @@ export default function RestaurantDetailPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                 {menu.map(item => {
                   const selected = form.menu_items.some(mi => mi.id === item.id);
-                  const qty = form.menu_items.find(mi => mi.id === item.id)?.quantity;
+                  const qty = form.menu_items.find(mi => mi.id === item.id)?.quantity || 0;
                   const price = parseFloat(item.price) || 0;
+
                   return (
                     <div
                       key={item.id}
-                      onClick={() => toggleMenuItem(item)}
-                      className={`relative p-2 rounded-lg border cursor-pointer hover:shadow-lg transition ${
-                        selected ? "border-indigo-500 bg-indigo-50" : "border-gray-200"
-                      }`}
+                      className="relative p-2 rounded-lg border hover:shadow-lg transition"
                     >
-                      {selected && (
-                        <div className="absolute top-2 right-2 bg-indigo-500 text-white rounded-full p-1">
-                          ✓
-                        </div>
-                      )}
                       <img
-                        src={item.imageUrl||defaultCover}
+                        src={item.imageUrl || defaultCover}
                         alt={item.name}
                         className="w-full h-32 object-cover rounded"
                       />
                       <h3 className="mt-2 font-semibold">{item.name}</h3>
-                      <p className="text-sm text-gray-600 truncate">{item.description}</p>
-                      <div className="mt-1 flex justify-between items-center">
-                        <span className="font-bold text-green-600">৳{price.toFixed(2)}</span>
-                        {selected && (
-                          <div className="flex items-center space-x-1">
+                      <p className="text-sm text-gray-600 truncate">
+                        {item.description}
+                      </p>
+                      <span className="font-bold text-green-600">
+                        ৳{price.toFixed(2)}
+                      </span>
+
+                      <div className="absolute bottom-2 right-2">
+                        {!selected ? (
+                          <button
+                            onClick={() => toggleMenuItem(item)}
+                            className="bg-indigo-600 text-white rounded-full px-3 py-1 text-sm hover:bg-indigo-700 transition"
+                          >
+                            Add
+                          </button>
+                        ) : (
+                          <div className="inline-flex items-center bg-white border rounded-full overflow-hidden">
                             <button
-                              type="button"
-                              onClick={e => { e.stopPropagation(); changeMenuQty(item.id, qty - 1); }}
-                              className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center"
-                            >–</button>
-                            <span>{qty}</span>
+                              onClick={e => {
+                                e.stopPropagation();
+                                changeMenuQty(item.id, qty - 1);
+                              }}
+                              className="px-2 hover:bg-gray-100 transition"
+                            >
+                              –
+                            </button>
+                            <span className="px-2">{qty}</span>
                             <button
-                              type="button"
-                              onClick={e => { e.stopPropagation(); changeMenuQty(item.id, qty + 1); }}
-                              className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center"
-                            >+</button>
+                              onClick={e => {
+                                e.stopPropagation();
+                                changeMenuQty(item.id, qty + 1);
+                              }}
+                              className="px-2 hover:bg-gray-100 transition"
+                            >
+                              +
+                            </button>
                           </div>
                         )}
                       </div>
@@ -292,13 +339,17 @@ export default function RestaurantDetailPage() {
 
         {/* Map & Booking */}
         <div className="space-y-8">
+          {/* Map */}
           <section className="bg-white rounded-lg overflow-hidden shadow h-64">
             <div
               className="w-full h-full"
-              dangerouslySetInnerHTML={{ __html: rest.mapEmbedHtml?.trim() || fallbackMap }}
+              dangerouslySetInnerHTML={{
+                __html: rest.mapEmbedHtml?.trim() || fallbackMap
+              }}
             />
           </section>
 
+          {/* Booking Form */}
           {userRole === "customer" && (
             <div className="bg-white p-6 rounded-lg shadow space-y-4">
               <h2 className="text-2xl font-semibold">Reserve a Table</h2>
@@ -311,17 +362,32 @@ export default function RestaurantDetailPage() {
                     const item = menu.find(m => m.id === mi.id);
                     const price = parseFloat(item?.price) || 0;
                     return (
-                      <div key={mi.id} className="flex border rounded-lg overflow-hidden shadow-sm">
-                        <img src={item?.imageUrl||defaultCover} className="w-16 h-16 object-cover" alt="" />
+                      <div
+                        key={mi.id}
+                        className="flex border rounded-lg overflow-hidden shadow-sm"
+                      >
+                        <img
+                          src={item?.imageUrl || defaultCover}
+                          className="w-16 h-16 object-cover"
+                          alt=""
+                        />
                         <div className="p-2 flex flex-col justify-between">
-                          <h4 className="text-sm font-semibold">{item?.name}</h4>
-                          <p className="text-xs text-gray-600">Qty: {mi.quantity}</p>
-                          <p className="text-xs text-green-600">৳{(price * mi.quantity).toFixed(2)}</p>
+                          <h4 className="text-sm font-semibold">
+                            {item?.name}
+                          </h4>
+                          <p className="text-xs text-gray-600">
+                            Qty: {mi.quantity}
+                          </p>
+                          <p className="text-xs text-green-600">
+                            ৳{(price * mi.quantity).toFixed(2)}
+                          </p>
                         </div>
                         <button
                           onClick={() => removeMenuItem(mi.id)}
                           className="text-red-500 px-2 self-start"
-                        >×</button>
+                        >
+                          ×
+                        </button>
                       </div>
                     );
                   })}
@@ -329,30 +395,42 @@ export default function RestaurantDetailPage() {
               )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Tables */}
                 <div className="space-y-2">
                   <label className="block font-medium">Select Tables</label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {loadingTables
-                      ? <p>Loading tables…</p>
-                      : availableTables.map(t => {
+                    {loadingTables ? (
+                      <p>Loading tables…</p>
+                    ) : (
+                      availableTables.map(t => {
                         const sel = form.table_ids.includes(t.id.toString());
                         return (
-                          <label key={t.id} className="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50">
+                          <label
+                            key={t.id}
+                            className="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50"
+                          >
                             <input
                               type="checkbox"
                               checked={sel}
                               onChange={() => toggleTable(t.id.toString())}
                               className="h-4 w-4 text-indigo-600"
                             />
-                            <span>Table {t.table_number} (seats {t.capacity})</span>
+                            <span>
+                              Table {t.table_number} (seats {t.capacity})
+                            </span>
                           </label>
                         );
                       })
-                    }
+                    )}
                   </div>
-                  {seatingMessage && <p className="text-sm text-gray-700 mt-1">{seatingMessage}</p>}
+                  {seatingMessage && (
+                    <p className="text-sm text-gray-700 mt-1">
+                      {seatingMessage}
+                    </p>
+                  )}
                 </div>
 
+                {/* Party Size */}
                 <div>
                   <label className="block mb-1 font-medium">Party Size</label>
                   <input
@@ -365,6 +443,7 @@ export default function RestaurantDetailPage() {
                   />
                 </div>
 
+                {/* Date & Time */}
                 <div>
                   <label className="block mb-1 font-medium">Date & Time</label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -395,8 +474,11 @@ export default function RestaurantDetailPage() {
                   </div>
                 </div>
 
+                {/* Special Requests */}
                 <div>
-                  <label className="block mb-1 font-medium">Special Requests</label>
+                  <label className="block mb-1 font-medium">
+                    Special Requests
+                  </label>
                   <textarea
                     name="special_requests"
                     rows="3"
